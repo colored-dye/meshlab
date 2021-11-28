@@ -1,0 +1,8 @@
+Project: Mesh
+Author: BAO Yuntai
+Setup date: 2021/11/24
+Specification: A toy 3D mesh display tool similar to Meshlab.
+Platform: Qt5
+Libraries: OpenGL4.6.0 - Build 27.20.100.8935
+
+Encoding: UTF-8
