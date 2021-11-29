@@ -1,20 +1,21 @@
 #include "MyOpenGLWidget.h"
 #include <QCoreApplication>
-
+#include <QtMath>
 
 MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
   : QOpenGLWidget(parent)
+  , cameraFront(0.0f)
+  , m_vao(nullptr)
+  , m_vbo(nullptr)
+  , m_ebo(nullptr)
 {
     m_label = new QLabel("Hello, mesh!", this);
     // 计算长宽比
     m_aspectRatio = this->width() / this->height();
     // 视野,默认为45.0
     m_fov = 45.0f;
-    // 欧拉角,只需要仰角(pitch)和水平角(yaw)
-    m_yaw = 0.0f;
-    m_pitch = 0.0f;
-    // 上一帧的鼠标位置
-    m_lastX = m_lastY = 0.0f;
+    // 上一帧的鼠标在世界坐标中的位置
+    m_lastPos = glm::vec2(0, 0);
     // 相机位置和方向
     cameraPos = glm::vec3(0.0f, 0.0f, CAMERA_DIST);
     cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -69,8 +70,9 @@ void MyOpenGLWidget::initializeGL()
     }
 
     // 获取视角(view)和投影(projection)在vertex shader中的位置
-    m_view = m_shader->uniformLocation("view");
-    m_projection = m_shader->uniformLocation("projection");
+    m_viewPos = m_shader->uniformLocation("view");
+    m_projectionPos = m_shader->uniformLocation("projection");
+    m_rotationPos = m_shader->uniformLocation("rotation");
 }
 
 void MyOpenGLWidget::paintGL()
@@ -82,30 +84,34 @@ void MyOpenGLWidget::paintGL()
     if(m_axisShow)
         drawAxis();
 
+    if(m_Vertices.size() == 0)
+        return;
     // 绘制顶点
-    m_vao->bind();
     m_shader->bind();
+    m_vao->bind();
 
     // 摄像机绕着场景旋转
-    glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0, 0, 0), cameraUp);
-    m_functions->glUniformMatrix4fv(m_view, 1, GL_FALSE, &view[0][0]);
+    glm::mat4 view = glm::lookAt(cameraPos, cameraFront, cameraUp);
+    m_functions->glUniformMatrix4fv(m_viewPos, 1, GL_FALSE, &view[0][0]);
 
     // 投影
     glm::mat4 projection = glm::perspective(glm::radians(m_fov), m_aspectRatio, 0.1f, 100.0f);
-    m_functions->glUniformMatrix4fv(m_projection, 1, GL_FALSE, &projection[0][0]);
+    m_functions->glUniformMatrix4fv(m_projectionPos, 1, GL_FALSE, &projection[0][0]);
 
-//    glTranslatef((m_maxPoint.x + m_minPoint.x) / 2, (m_maxPoint.y + m_minPoint.y) / 2, (m_maxPoint.z + m_minPoint.z) / 2);
-    QMatrix4x4 trans;
-    trans.translate(-(m_maxPoint.x + m_minPoint.x) / 2, -(m_maxPoint.y + m_minPoint.y) / 2, -(m_maxPoint.z + m_minPoint.z) / 2);
-    m_shader->setUniformValue("model", trans);
+//    m_functions->glUniformMatrix4fv(m_modelPos, 1, GL_FALSE, glm::value_ptr(m_model));
+    m_shader->setUniformValue(m_rotationPos, m_rotation);
+    m_shader->setUniformValue("translation", m_trans);
+    QMatrix4x4 scale;
+    scale.scale(10);
+    m_shader->setUniformValue("scale", scale);
 
     if(m_showVert)
         m_functions->glDrawArrays(GL_POINTS, 0, m_Vertices.size());
 
     if(m_showEdge)
         m_functions->glDrawElements(GL_LINES, m_Indices.size(), GL_UNSIGNED_INT, 0);
-    m_shader->release();
     m_vao->release();
+    m_shader->release();
 }
 
 void MyOpenGLWidget::resizeGL(int w, int h)
@@ -135,39 +141,23 @@ void MyOpenGLWidget::mousePressEvent(QMouseEvent *event)
 {
     if(event->button() == Qt::LeftButton){
         QPoint pos = event->pos();
-        m_lastX = pos.x();
-        m_lastY = pos.y();
+        m_lastPos = transPoint(glm::vec2(pos.x(), pos.y()));
+        m_rotationUse = m_rotationSave;
     }
 }
 
 void MyOpenGLWidget::mouseMoveEvent(QMouseEvent *event)
 {
     QPoint pos = event->pos();
-    float xoffset = pos.x() - m_lastX;
-    float yoffset = pos.y() - m_lastY;
-    m_lastX = pos.x();
-    m_lastY = pos.y();
+    glm::vec2 ppos(pos.x(), pos.y());
+    ppos = transPoint(ppos);
+    glm::vec2 sub = ppos - m_lastPos;
 
-    m_yaw += xoffset;
-    m_pitch += yoffset;
-    qDebug() << "Pitch: " << m_pitch << " Yaw: " << m_yaw << endl;
-
-    if(m_pitch > 89.0f)
-        m_pitch = 89.0f;
-    if(m_pitch < -89.0f)
-        m_pitch = -89.0f;
-
-    glm::vec3 front;
-    front.x = cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
-    front.y = sin(glm::radians(m_pitch));
-    front.z = sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
-
-    // 更新摄像机位置,移动方向与鼠标移动方向相反,且与原点距离始终保持为CAMERA_DIST
-    cameraPos += glm::normalize(front);;
-    cameraPos = CAMERA_DIST * glm::normalize(cameraPos);
-
-    qDebug() << "Camera position: (" << cameraPos.x << ", " << cameraPos.y << ", " << cameraPos.z << ")\n";
-    qDebug() << "Camera direction: (" << front.x << ", " << front.y << ", " << front.z << " )\n";
+    float angle = qSqrt(sub.x * sub.x + sub.y * sub.y);
+    m_rotation.setToIdentity();
+    m_rotation.rotate(angle, sub.y, sub.x, 0);
+    m_rotation *= m_rotationUse;
+    m_rotationSave = m_rotation;
 
     this->update();
 }
@@ -183,10 +173,12 @@ void MyOpenGLWidget::initAxis()
             "#version 330\n \
              uniform mat4 view;\n \
              uniform mat4 projection;\n \
+             uniform mat4 rotation;\n \
+             uniform mat4 translation;\n \
              layout(location = 0) in vec3 posVertex;\n \
              void main()\n \
              {\n \
-                gl_Position = projection * view * vec4(posVertex, 1.0f);\n \
+                gl_Position = projection * view * rotation * translation * vec4(posVertex, 1.0f);\n \
              }\n";
     for(int i=0; i<3; i++){
         m_shader_axis[i] = new QOpenGLShaderProgram();
@@ -198,8 +190,9 @@ void MyOpenGLWidget::initAxis()
         else {
             qDebug("Shaders link failed!");
         }
-        m_view_axis[i] = m_shader_axis[i]->uniformLocation("view");
-        m_projection_axis[i] = m_shader_axis[i]->uniformLocation("projection");
+        m_viewPos_axis[i] = m_shader_axis[i]->uniformLocation("view");
+        m_projectionPos_axis[i] = m_shader_axis[i]->uniformLocation("projection");
+        m_rotationPos_axis[i] = m_shader_axis[i]->uniformLocation("rotation");
     }
 
     const GLfloat MAX_AXIS = 100.0f;
@@ -234,13 +227,19 @@ void MyOpenGLWidget::drawAxis()
 
         for(int i=0; i<3; i++){
             m_shader_axis[i]->bind();
-            // 摄像机绕着场景旋转
-            glm::mat4 view = glm::lookAt(cameraPos, glm::vec3(0, 0, 0), cameraUp);
-            m_functions->glUniformMatrix4fv(m_view_axis[i], 1, GL_FALSE, &view[0][0]);
+            // 摄像机
+            glm::mat4 view = glm::lookAt(cameraPos, cameraFront, cameraUp);
+            m_functions->glUniformMatrix4fv(m_viewPos_axis[i], 1, GL_FALSE, &view[0][0]);
 
             // 投影
             glm::mat4 projection = glm::perspective(glm::radians(m_fov), m_aspectRatio, 0.1f, 100.0f);
-            m_functions->glUniformMatrix4fv(m_projection_axis[i], 1, GL_FALSE, &projection[0][0]);
+            m_functions->glUniformMatrix4fv(m_projectionPos_axis[i], 1, GL_FALSE, &projection[0][0]);
+
+            // 模型矩阵
+//            m_functions->glUniformMatrix4fv(m_modelPos_axis[i], 1, GL_FALSE, glm::value_ptr(m_model));
+            m_shader_axis[i]->setUniformValue("rotation", m_rotation);
+            m_shader_axis[i]->setUniformValue("translation", m_trans);
+
             m_functions->glDrawArrays(GL_LINES, 2*i, 2);
             m_shader_axis[i]->release();
         }
@@ -328,10 +327,16 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
     }
     file.close();
 
-    m_vao = new QOpenGLVertexArrayObject();
+    // 计算模型平移矩阵
+    m_trans.setToIdentity();
+    m_trans.translate(-(m_maxPoint.x + m_minPoint.x) / 2, -(m_maxPoint.y + m_minPoint.y) / 2, -(m_maxPoint.z + m_minPoint.z) / 2);
+
+    if(m_vao == nullptr)
+        m_vao = new QOpenGLVertexArrayObject();
     m_vao->create();
     m_vao->bind();
-    m_vbo = new QOpenGLBuffer(QOpenGLBuffer::Type::VertexBuffer);
+    if(m_vbo == nullptr)
+        m_vbo = new QOpenGLBuffer(QOpenGLBuffer::Type::VertexBuffer);
     m_vbo->create();
     m_vbo->bind();
     m_ebo = new QOpenGLBuffer(QOpenGLBuffer::Type::IndexBuffer);
@@ -350,5 +355,12 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
 
     m_label->setText("Number of vertices: " + QString::number(m_Vertices.size()));
 
+    this->update();
+
     return true;
+}
+
+glm::vec2 MyOpenGLWidget::transPoint(glm::vec2 p)
+{
+    return (p - (getWindowCenter()));
 }
