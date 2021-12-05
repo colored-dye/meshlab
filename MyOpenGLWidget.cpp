@@ -175,10 +175,11 @@ void MyOpenGLWidget::initAxis()
              uniform mat4 projection;\n \
              uniform mat4 rotation;\n \
              uniform mat4 translation;\n \
+             uniform mat4 scale;\n \
              layout(location = 0) in vec3 posVertex;\n \
              void main()\n \
              {\n \
-                gl_Position = projection * view * rotation * translation * vec4(posVertex, 1.0f);\n \
+                gl_Position = projection * view * scale * rotation * translation * vec4(posVertex, 1.0f);\n \
              }\n";
     for(int i=0; i<3; i++){
         m_shader_axis[i] = new QOpenGLShaderProgram();
@@ -236,9 +237,11 @@ void MyOpenGLWidget::drawAxis()
             m_functions->glUniformMatrix4fv(m_projectionPos_axis[i], 1, GL_FALSE, &projection[0][0]);
 
             // 模型矩阵
-//            m_functions->glUniformMatrix4fv(m_modelPos_axis[i], 1, GL_FALSE, glm::value_ptr(m_model));
             m_shader_axis[i]->setUniformValue("rotation", m_rotation);
             m_shader_axis[i]->setUniformValue("translation", m_trans);
+            QMatrix4x4 scale;
+            scale.scale(10);
+            m_shader_axis[i]->setUniformValue("scale", scale);
 
             m_functions->glDrawArrays(GL_LINES, 2*i, 2);
             m_shader_axis[i]->release();

@@ -75,11 +75,7 @@ private:
     GLuint m_viewPos;
     GLuint m_rotationPos;
 
-    // 模型矩阵, model = rotation * translation * scale
-//    glm::mat4 m_model, m_modelUse, m_modelSave;
-//    QMatrix4x4 m_model, m_modelUse, m_modelSave;
     // 平移矩阵
-//    glm::mat4 m_trans;
     QMatrix4x4 m_trans;
     // 旋转矩阵
     QMatrix4x4 m_rotation, m_rotationUse, m_rotationSave;
