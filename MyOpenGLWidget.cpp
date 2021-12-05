@@ -4,21 +4,15 @@
 
 MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
   : QOpenGLWidget(parent)
-  , cameraFront(0.0f)
   , m_vao(nullptr)
   , m_vbo(nullptr)
   , m_ebo(nullptr)
+  , camera(this)
+  , m_scaleRatio(1.0f)
 {
-    m_label = new QLabel("Hello, mesh!", this);
-    // 计算长宽比
-    m_aspectRatio = this->width() / this->height();
-    // 视野,默认为45.0
-    m_fov = 45.0f;
+    m_label = new QLabel("Hello, Meshware5994!", this);
     // 上一帧的鼠标在世界坐标中的位置
     m_lastPos = glm::vec2(0, 0);
-    // 相机位置和方向
-    cameraPos = glm::vec3(0.0f, 0.0f, CAMERA_DIST);
-    cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
     // 显示坐标轴
     m_axisShow = true;
     // 显示顶点
@@ -28,6 +22,8 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
 
     m_minPoint = glm::vec3(1000, 1000, 1000);
     m_maxPoint = glm::vec3(-1000, -1000, -1000);
+
+    this->grabKeyboard();
 }
 
 MyOpenGLWidget::~MyOpenGLWidget()
@@ -68,11 +64,6 @@ void MyOpenGLWidget::initializeGL()
     if(!loadVertexFromFile(path + "/bunny.ply")){
         QMessageBox::warning(this, "Warning", "Cannot open file: " + path + "/test.txt");
     }
-
-    // 获取视角(view)和投影(projection)在vertex shader中的位置
-    m_viewPos = m_shader->uniformLocation("view");
-    m_projectionPos = m_shader->uniformLocation("projection");
-    m_rotationPos = m_shader->uniformLocation("rotation");
 }
 
 void MyOpenGLWidget::paintGL()
@@ -91,23 +82,22 @@ void MyOpenGLWidget::paintGL()
     m_vao->bind();
 
     // 摄像机绕着场景旋转
-    glm::mat4 view = glm::lookAt(cameraPos, cameraFront, cameraUp);
-    m_functions->glUniformMatrix4fv(m_viewPos, 1, GL_FALSE, &view[0][0]);
+    m_functions->glUniformMatrix4fv(m_shader->uniformLocation("view"), 1, GL_FALSE, glm::value_ptr(camera.getViewMatrix()));
 
     // 投影
-    glm::mat4 projection = glm::perspective(glm::radians(m_fov), m_aspectRatio, 0.1f, 100.0f);
-    m_functions->glUniformMatrix4fv(m_projectionPos, 1, GL_FALSE, &projection[0][0]);
+    m_functions->glUniformMatrix4fv(m_shader->uniformLocation("projection"), 1, GL_FALSE, glm::value_ptr(camera.getProjectionMatrix()));
 
-//    m_functions->glUniformMatrix4fv(m_modelPos, 1, GL_FALSE, glm::value_ptr(m_model));
-    m_shader->setUniformValue(m_rotationPos, m_rotation);
+    // 变换矩阵
+    m_shader->setUniformValue("rotation", m_rotation);
     m_shader->setUniformValue("translation", m_trans);
-    QMatrix4x4 scale;
-    scale.scale(10);
-    m_shader->setUniformValue("scale", scale);
+    m_shader->setUniformValue("scale", m_scale);
+    m_shader->setUniformValue("move", m_move);
 
+    // 绘制顶点
     if(m_showVert)
         m_functions->glDrawArrays(GL_POINTS, 0, m_Vertices.size());
 
+    // 绘制连线
     if(m_showEdge)
         m_functions->glDrawElements(GL_LINES, m_Indices.size(), GL_UNSIGNED_INT, 0);
     m_vao->release();
@@ -117,7 +107,7 @@ void MyOpenGLWidget::paintGL()
 void MyOpenGLWidget::resizeGL(int w, int h)
 {
     glViewport(0, 0, w, h);
-    m_aspectRatio = this->width() / this->height();
+    camera.setAspectRatio(1.0f * this->width() / this->height());
     qDebug() << "Width: " << this->width() << ", Height: " << this->height() << endl;
 }
 
@@ -125,24 +115,28 @@ void MyOpenGLWidget::wheelEvent(QWheelEvent *event)
 {
     if(event->delta() < 0){
         // 放大
-        if(m_fov > 1)
-            m_fov--;
+        m_scaleRatio += 1.5f;
+        m_scale.setToIdentity();
+        m_scale.scale(m_scaleRatio);
     }else{
         // 缩小
-        if(m_fov < 100)
-            m_fov++;
+        if(m_scaleRatio > 1.5f + 0.01f){
+            m_scaleRatio -= 1.5f;
+            m_scale.setToIdentity();
+            m_scale.scale(m_scaleRatio);
+        }
     }
-    qDebug() << "field: " << m_fov << endl;
-    m_label->setText("Zoom ratio: " + QString::number(m_fov));
+    m_label->setText("Zoom ratio: " + QString::number(m_scaleRatio));
     this->update();
 }
 
 void MyOpenGLWidget::mousePressEvent(QMouseEvent *event)
 {
-    if(event->button() == Qt::LeftButton){
+    if(event->buttons() & Qt::LeftButton || event->buttons() & Qt::MiddleButton){
         QPoint pos = event->pos();
         m_lastPos = transPoint(glm::vec2(pos.x(), pos.y()));
         m_rotationUse = m_rotationSave;
+        m_moveUse = m_moveSave;
     }
 }
 
@@ -153,11 +147,57 @@ void MyOpenGLWidget::mouseMoveEvent(QMouseEvent *event)
     ppos = transPoint(ppos);
     glm::vec2 sub = ppos - m_lastPos;
 
-    float angle = qSqrt(sub.x * sub.x + sub.y * sub.y);
-    m_rotation.setToIdentity();
-    m_rotation.rotate(angle, sub.y, sub.x, 0);
-    m_rotation *= m_rotationUse;
-    m_rotationSave = m_rotation;
+    // 旋转: 鼠标左键按住并拖动
+    if(event->buttons() & Qt::LeftButton){
+        float angle = qSqrt(sub.x * sub.x + sub.y * sub.y);
+        m_rotation.setToIdentity();
+        m_rotation.rotate(angle, sub.y, sub.x, 0);
+        m_rotation *= m_rotationUse;
+        m_rotationSave = m_rotation;
+    }
+
+    // 平移: 鼠标中键按住并拖动
+    if(event->buttons() & Qt::MiddleButton){
+        QMatrix4x4 trans;
+        trans.translate(sub.x / 1000 / m_scaleRatio, - sub.y / 1000 / m_scaleRatio);
+        m_move = trans * m_moveUse;
+        m_moveSave = m_move;
+    }
+
+    this->update();
+}
+
+void MyOpenGLWidget::keyPressEvent(QKeyEvent *event)
+{
+    QMatrix4x4 trans;
+
+    const float step = 0.01f;
+    switch(event->key()){
+    case Qt::Key_A:
+    case Qt::Key_Left:
+        trans.translate(- step / m_scaleRatio, 0);
+        break;
+    case Qt::Key_D:
+    case Qt::Key_Right:
+        trans.translate(step / m_scaleRatio, 0);
+        break;
+    case Qt::Key_W:
+        trans.translate(0, 0, - step / m_scaleRatio);
+        break;
+    case Qt::Key_S:
+        trans.translate(0, 0 ,step / m_scaleRatio);
+        break;
+    case Qt::Key_Up:
+        trans.translate(0, step / m_scaleRatio);
+        break;
+    case Qt::Key_Down:
+        trans.translate(0, - step / m_scaleRatio);
+        break;
+    default:
+        break;
+    }
+
+    m_trans = trans * m_trans;
 
     this->update();
 }
@@ -191,9 +231,6 @@ void MyOpenGLWidget::initAxis()
         else {
             qDebug("Shaders link failed!");
         }
-        m_viewPos_axis[i] = m_shader_axis[i]->uniformLocation("view");
-        m_projectionPos_axis[i] = m_shader_axis[i]->uniformLocation("projection");
-        m_rotationPos_axis[i] = m_shader_axis[i]->uniformLocation("rotation");
     }
 
     const GLfloat MAX_AXIS = 100.0f;
@@ -229,19 +266,15 @@ void MyOpenGLWidget::drawAxis()
         for(int i=0; i<3; i++){
             m_shader_axis[i]->bind();
             // 摄像机
-            glm::mat4 view = glm::lookAt(cameraPos, cameraFront, cameraUp);
-            m_functions->glUniformMatrix4fv(m_viewPos_axis[i], 1, GL_FALSE, &view[0][0]);
+            m_functions->glUniformMatrix4fv(m_shader_axis[i]->uniformLocation("view"), 1, GL_FALSE, glm::value_ptr(camera.getViewMatrix()));
 
             // 投影
-            glm::mat4 projection = glm::perspective(glm::radians(m_fov), m_aspectRatio, 0.1f, 100.0f);
-            m_functions->glUniformMatrix4fv(m_projectionPos_axis[i], 1, GL_FALSE, &projection[0][0]);
+            m_functions->glUniformMatrix4fv(m_shader_axis[i]->uniformLocation("projection"), 1, GL_FALSE, glm::value_ptr(camera.getProjectionMatrix()));
 
-            // 模型矩阵
+            // 变换矩阵
             m_shader_axis[i]->setUniformValue("rotation", m_rotation);
-            m_shader_axis[i]->setUniformValue("translation", m_trans);
-            QMatrix4x4 scale;
-            scale.scale(10);
-            m_shader_axis[i]->setUniformValue("scale", scale);
+            m_shader_axis[i]->setUniformValue("translation", m_trans_axis);
+            m_shader_axis[i]->setUniformValue("scale", m_scale);
 
             m_functions->glDrawArrays(GL_LINES, 2*i, 2);
             m_shader_axis[i]->release();
@@ -258,6 +291,9 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
         QMessageBox::warning(this, "Warning", "Cannot open file: " + file.errorString());
         return false;
     }
+
+    m_Vertices.clear();
+    m_Indices.clear();
 
     char buf[128];
     glm::vec3 v;
@@ -333,6 +369,11 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
     // 计算模型平移矩阵
     m_trans.setToIdentity();
     m_trans.translate(-(m_maxPoint.x + m_minPoint.x) / 2, -(m_maxPoint.y + m_minPoint.y) / 2, -(m_maxPoint.z + m_minPoint.z) / 2);
+    m_trans_axis = m_trans;
+    // 计算模型缩放矩阵
+    m_scale.setToIdentity();
+    m_scaleRatio = fmin(this->width(), this->height()) / 30.0f;
+    m_scale.scale(m_scaleRatio);
 
     if(m_vao == nullptr)
         m_vao = new QOpenGLVertexArrayObject();
@@ -352,7 +393,6 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
     m_functions->glEnableVertexAttribArray(0);
     m_functions->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
 
-//    m_ebo->release();
     m_vbo->release();
     m_vao->release();
 

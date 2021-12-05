@@ -17,6 +17,8 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 
+#include "Camera.h"
+
 #define CAMERA_DIST (3.0f)
 
 class MyOpenGLWidget : public QOpenGLWidget
@@ -39,6 +41,7 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     void initAxis();
@@ -49,46 +52,42 @@ private:
 
 private:
     QOpenGLFunctions* m_functions;
-    QOpenGLBuffer* m_vbo;
+    // 模型相关: 顶点数组,顶点buffer,索引buffer,着色器
     QOpenGLVertexArrayObject* m_vao;
+    QOpenGLBuffer* m_vbo;
     QOpenGLBuffer* m_ebo;
     QOpenGLShaderProgram* m_shader;
-    // 长宽比
-    float m_aspectRatio;
-    // 几何属性: field of view, yaw, pitch
-    float m_fov;
+    // 摄像机
+    Camera camera;
     // 鼠标上一帧的位置(世界坐标)
     glm::vec2 m_lastPos;
-    // 摄像机位置和上方向量
-    glm::vec3 cameraPos, cameraUp, cameraFront;
     // 坐标轴
     bool m_axisShow;
     QOpenGLShaderProgram* m_shader_axis[3];
     QOpenGLVertexArrayObject* m_vao_axis;
     QOpenGLBuffer* m_vbo_axis;
-    GLuint m_projectionPos_axis[3];
-    GLuint m_viewPos_axis[3];
-    GLuint m_rotationPos_axis[3];
+    QMatrix4x4 m_trans_axis;
 
-    // 物体
-    GLuint m_projectionPos;
-    GLuint m_viewPos;
-    GLuint m_rotationPos;
-
-    // 平移矩阵
+    // 模型平移矩阵
     QMatrix4x4 m_trans;
     // 旋转矩阵
     QMatrix4x4 m_rotation, m_rotationUse, m_rotationSave;
+    // 缩放矩阵
+    QMatrix4x4 m_scale;
+    float m_scaleRatio;
+    QMatrix4x4 m_move, m_moveUse, m_moveSave;
 
+    // 模型最大/最小的坐标维度构成的点
     glm::vec3 m_minPoint;
     glm::vec3 m_maxPoint;
-    // 顶点(vertex)
+    // 顶点(vertex)和连线的索引(index)
     std::vector<glm::vec3> m_Vertices;
     std::vector<unsigned int> m_Indices;
+    // 显示连线
     bool m_showEdge;
+    // 显示顶点
     bool m_showVert;
-    // 面元(face)
-    // 底部状态栏
+    // 左下角状态栏
     QLabel *m_label;
 };
 #endif // MYOPENGLWIDGET_H

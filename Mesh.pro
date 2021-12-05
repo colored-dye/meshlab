@@ -20,6 +20,7 @@ SOURCES += \
     mainwindow.cpp
 
 HEADERS += \
+    Camera.h \
     MyOpenGLWidget.h \
     mainwindow.h
 
