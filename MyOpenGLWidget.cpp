@@ -4,9 +4,6 @@
 
 MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
   : QOpenGLWidget(parent)
-  , m_vao(nullptr)
-  , m_vbo(nullptr)
-  , m_ebo(nullptr)
   , camera(this)
   , m_scaleRatio(1.0f)
 {
@@ -14,7 +11,7 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
     // 上一帧的鼠标在世界坐标中的位置
     m_lastPos = glm::vec2(0, 0);
     // 显示坐标轴
-    m_axisShow = true;
+    m_showAxis = true;
     // 显示顶点
     m_showVert = true;
     // 显示网格边
@@ -23,18 +20,17 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
     m_minPoint = glm::vec3(1000, 1000, 1000);
     m_maxPoint = glm::vec3(-1000, -1000, -1000);
 
-    this->grabKeyboard();
+//    this->grabKeyboard();
 }
 
 MyOpenGLWidget::~MyOpenGLWidget()
 {
     delete m_shader;
-    delete m_vao;
-    delete m_vbo;
-    delete m_ebo;
     delete m_label;
     for(int i=0; i<3; i++)
         delete m_shader_axis[i];
+    for(auto i : m_meshes)
+        delete i;
 }
 
 void MyOpenGLWidget::initializeGL()
@@ -43,17 +39,17 @@ void MyOpenGLWidget::initializeGL()
     m_functions = this->context()->functions();
     // 开启深度检测
     m_functions->glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
     // 顶点大小可调整
     m_functions->glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
+    glMatrixMode(GL_MODELVIEW);
 
     // 准备坐标轴
     initAxis();
 
     // 加载vertex shader和fragment shader
-    m_shader = new QOpenGLShaderProgram();
     QString path = QCoreApplication::applicationDirPath();
-    m_shader->addShaderFromSourceFile(QOpenGLShader::Vertex, path + "/shaders/vert.txt");
-    m_shader->addShaderFromSourceFile(QOpenGLShader::Fragment, path + "/shaders/frag.txt");
+    m_shader = new Shader(path + "/shaders/vert.txt", path + "/shaders/frag.txt", m_functions, this);
     if (m_shader->link()) {
         qDebug("Shaders link success.");
     }
@@ -61,9 +57,9 @@ void MyOpenGLWidget::initializeGL()
         qDebug("Shaders link failed!");
     }
 
-    if(!loadVertexFromFile(path + "/bunny.ply")){
-        QMessageBox::warning(this, "Warning", "Cannot open file: " + path + "/test.txt");
-    }
+//    if(!loadVertexFromFile(path + "/bunny.ply")){
+//        QMessageBox::warning(this, "Warning", "Cannot open file: " + path + "/test.txt");
+//    }
 }
 
 void MyOpenGLWidget::paintGL()
@@ -72,35 +68,31 @@ void MyOpenGLWidget::paintGL()
     m_functions->glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 背景颜色
 
     // 绘制坐标轴
-    if(m_axisShow)
-        drawAxis();
+    drawAxis();
 
-    if(m_Vertices.size() == 0)
-        return;
     // 绘制顶点
     m_shader->bind();
-    m_vao->bind();
 
-    // 摄像机绕着场景旋转
-    m_functions->glUniformMatrix4fv(m_shader->uniformLocation("view"), 1, GL_FALSE, glm::value_ptr(camera.getViewMatrix()));
+    m_shader->setMat4("view", camera.getViewMatrix());
 
     // 投影
-    m_functions->glUniformMatrix4fv(m_shader->uniformLocation("projection"), 1, GL_FALSE, glm::value_ptr(camera.getProjectionMatrix()));
+    m_shader->setMat4("projection", camera.getProjectionMatrix());
 
     // 变换矩阵
-    m_shader->setUniformValue("rotation", m_rotation);
-    m_shader->setUniformValue("translation", m_trans);
-    m_shader->setUniformValue("scale", m_scale);
-    m_shader->setUniformValue("move", m_move);
+    m_shader->setMat4("rotation", m_rotation);
+    m_shader->setMat4("translation", m_trans);
+    m_shader->setMat4("scale", m_scale);
+    m_shader->setMat4("move", m_move);
 
-    // 绘制顶点
-    if(m_showVert)
-        m_functions->glDrawArrays(GL_POINTS, 0, m_Vertices.size());
+    if(m_functions->glGetError() != GL_NO_ERROR){
+        QMessageBox::warning(this, "Warning", "Error");
+    }
 
-    // 绘制连线
-    if(m_showEdge)
-        m_functions->glDrawElements(GL_LINES, m_Indices.size(), GL_UNSIGNED_INT, 0);
-    m_vao->release();
+    for(auto i : m_meshes){
+        i->DrawVertex(m_shader, m_showVert);
+        i->DrawEdge(m_shader, m_showEdge);
+    }
+
     m_shader->release();
 }
 
@@ -126,6 +118,7 @@ void MyOpenGLWidget::wheelEvent(QWheelEvent *event)
             m_scale.scale(m_scaleRatio);
         }
     }
+
     m_label->setText("Zoom ratio: " + QString::number(m_scaleRatio));
     this->update();
 }
@@ -150,6 +143,7 @@ void MyOpenGLWidget::mouseMoveEvent(QMouseEvent *event)
     // 旋转: 鼠标左键按住并拖动
     if(event->buttons() & Qt::LeftButton){
         float angle = qSqrt(sub.x * sub.x + sub.y * sub.y);
+
         m_rotation.setToIdentity();
         m_rotation.rotate(angle, sub.y, sub.x, 0);
         m_rotation *= m_rotationUse;
@@ -163,41 +157,6 @@ void MyOpenGLWidget::mouseMoveEvent(QMouseEvent *event)
         m_move = trans * m_moveUse;
         m_moveSave = m_move;
     }
-
-    this->update();
-}
-
-void MyOpenGLWidget::keyPressEvent(QKeyEvent *event)
-{
-    QMatrix4x4 trans;
-
-    const float step = 0.01f;
-    switch(event->key()){
-    case Qt::Key_A:
-    case Qt::Key_Left:
-        trans.translate(- step / m_scaleRatio, 0);
-        break;
-    case Qt::Key_D:
-    case Qt::Key_Right:
-        trans.translate(step / m_scaleRatio, 0);
-        break;
-    case Qt::Key_W:
-        trans.translate(0, 0, - step / m_scaleRatio);
-        break;
-    case Qt::Key_S:
-        trans.translate(0, 0 ,step / m_scaleRatio);
-        break;
-    case Qt::Key_Up:
-        trans.translate(0, step / m_scaleRatio);
-        break;
-    case Qt::Key_Down:
-        trans.translate(0, - step / m_scaleRatio);
-        break;
-    default:
-        break;
-    }
-
-    m_trans = trans * m_trans;
 
     this->update();
 }
@@ -221,66 +180,54 @@ void MyOpenGLWidget::initAxis()
              {\n \
                 gl_Position = projection * view * scale * rotation * translation * vec4(posVertex, 1.0f);\n \
              }\n";
+
+    const GLfloat MAX_AXIS = 100.0f;
+    const GLfloat AXIS[] = {
+        0, 0, 0,
+        MAX_AXIS, 0, 0,
+        0, MAX_AXIS, 0,
+        0, 0, MAX_AXIS,
+    };
+
     for(int i=0; i<3; i++){
-        m_shader_axis[i] = new QOpenGLShaderProgram();
-        m_shader_axis[i]->addShaderFromSourceCode(QOpenGLShader::Fragment, axis_frag_shader[i]);
-        m_shader_axis[i]->addShaderFromSourceCode(QOpenGLShader::Vertex, axis_vert_shader);
+        m_shader_axis[i] = new Shader(axis_vert_shader, axis_frag_shader[i], m_functions, this);
         if (m_shader_axis[i]->link()) {
             qDebug("Shaders link success.");
         }
         else {
             qDebug("Shaders link failed!");
         }
+        m_mesh_axis[i] = new Mesh(m_functions);
+        m_mesh_axis[i]->pushVertex(0, 0, 0);
+        m_mesh_axis[i]->pushVertex(AXIS[3*i+3], AXIS[3*i+4], AXIS[3*i+5]);
+        m_mesh_axis[i]->pushIndex(0);
+        m_mesh_axis[i]->pushIndex(1);
+        m_mesh_axis[i]->setupMesh();
     }
-
-    const GLfloat MAX_AXIS = 100.0f;
-    const GLfloat AXIS[] = {
-        0, 0, 0,
-        MAX_AXIS, 0, 0,
-        0, 0, 0,
-        0, MAX_AXIS, 0,
-        0, 0, 0,
-        0, 0, MAX_AXIS,
-    };
-
-    m_vao_axis = new QOpenGLVertexArrayObject();
-    m_vao_axis->create();
-    m_vao_axis->bind();
-    m_vbo_axis = new QOpenGLBuffer(QOpenGLBuffer::Type::VertexBuffer);
-    m_vbo_axis->create();
-    m_vbo_axis->bind();
-
-    m_vbo_axis->allocate(AXIS, sizeof(AXIS));
-    m_functions->glEnableVertexAttribArray(0);
-    m_functions->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
-
-    m_vbo_axis->release();
-    m_vao_axis->release();
 }
 
 void MyOpenGLWidget::drawAxis()
 {
-    if(m_axisShow){
-        m_vao_axis->bind();
-
+    if(m_showAxis){
         for(int i=0; i<3; i++){
             m_shader_axis[i]->bind();
             // 摄像机
-            m_functions->glUniformMatrix4fv(m_shader_axis[i]->uniformLocation("view"), 1, GL_FALSE, glm::value_ptr(camera.getViewMatrix()));
-
+            m_shader_axis[i]->setMat4("view", camera.getViewMatrix());
             // 投影
-            m_functions->glUniformMatrix4fv(m_shader_axis[i]->uniformLocation("projection"), 1, GL_FALSE, glm::value_ptr(camera.getProjectionMatrix()));
-
+            m_shader_axis[i]->setMat4("projection", camera.getProjectionMatrix());
             // 变换矩阵
-            m_shader_axis[i]->setUniformValue("rotation", m_rotation);
-            m_shader_axis[i]->setUniformValue("translation", m_trans_axis);
-            m_shader_axis[i]->setUniformValue("scale", m_scale);
+            m_shader_axis[i]->setMat4("rotation", m_rotation);
+            m_shader_axis[i]->setMat4("translation", m_trans_axis);
+            m_shader_axis[i]->setMat4("scale", m_scale);
 
-            m_functions->glDrawArrays(GL_LINES, 2*i, 2);
+            m_mesh_axis[i]->DrawEdge(m_shader_axis[i], m_showAxis);
+
+                if(m_functions->glGetError() != GL_NO_ERROR){
+                    QMessageBox::warning(this, "Warning", "Error");
+                }
+
             m_shader_axis[i]->release();
         }
-
-        m_vao_axis->release();
     }
 }
 
@@ -292,11 +239,10 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
         return false;
     }
 
-    m_Vertices.clear();
-    m_Indices.clear();
+    Mesh *mesh = new Mesh(m_functions);
 
     char buf[128];
-    glm::vec3 v;
+    Vertex v;
 
     bool isPLY = false;
     while(file.readLine(buf, sizeof(buf)) != -1){
@@ -306,8 +252,8 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
             isPLY = true;
             break;
         }
-        sscanf_s(buf, "%f %f %f", &v.x, &v.y, &v.z);
-        m_Vertices.push_back(v);
+        sscanf_s(buf, "%f %f %f", &v.Position.x, &v.Position.y, &v.Position.z);
+        mesh->pushVertex(v);
     }
     // 解析PLY文件
     if(isPLY){
@@ -331,14 +277,14 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
             ;
         for(unsigned int i=0; i<num_vertex; i++){
             if(file.readLine(buf, sizeof(buf)) != -1){
-                sscanf_s(buf, "%f %f %f", &v.x, &v.y, &v.z);
-                m_Vertices.push_back(v);
-                m_minPoint.x = fmin(m_minPoint.x, v.x);
-                m_minPoint.y = fmin(m_minPoint.y, v.y);
-                m_minPoint.z = fmin(m_minPoint.z, v.z);
-                m_maxPoint.x = fmax(m_maxPoint.x, v.x);
-                m_maxPoint.y = fmax(m_maxPoint.y, v.y);
-                m_maxPoint.z = fmax(m_maxPoint.z, v.z);
+                sscanf_s(buf, "%f %f %f", &v.Position.x, &v.Position.y, &v.Position.z);
+                mesh->pushVertex(v);
+                m_minPoint.x = fmin(m_minPoint.x, v.Position.x);
+                m_minPoint.y = fmin(m_minPoint.y, v.Position.y);
+                m_minPoint.z = fmin(m_minPoint.z, v.Position.z);
+                m_maxPoint.x = fmax(m_maxPoint.x, v.Position.x);
+                m_maxPoint.y = fmax(m_maxPoint.y, v.Position.y);
+                m_maxPoint.z = fmax(m_maxPoint.z, v.Position.z);
             }else{
                 QMessageBox::warning(this, "Warning", "Vertex number does not fit! File: " + file.errorString());
                 return false;
@@ -351,13 +297,13 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
                 ss >> facen;
                 unsigned int vert0, vert1;
                 ss >> vert0;
-                m_Indices.push_back(vert0);
+                mesh->pushIndex(vert0);
                 for(unsigned int i=1; i<facen; i++){
                     ss >> vert1;
-                    m_Indices.push_back(vert1);
-                    m_Indices.push_back(vert1);
+                    mesh->pushIndex(vert1);
+                    mesh->pushIndex(vert1);
                 }
-                m_Indices.push_back(vert0);
+                mesh->pushIndex(vert0);
             }else{
                 QMessageBox::warning(this, "Warning", "Face number does not fit! File: " + file.errorString());
                 return false;
@@ -372,33 +318,13 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
     m_trans_axis = m_trans;
     // 计算模型缩放矩阵
     m_scale.setToIdentity();
-    m_scaleRatio = fmin(this->width(), this->height()) / 30.0f;
+    m_scaleRatio = fmax(fmax(m_maxPoint.x, m_maxPoint.y), m_maxPoint.z) * 40.0f;
     m_scale.scale(m_scaleRatio);
 
-    if(m_vao == nullptr)
-        m_vao = new QOpenGLVertexArrayObject();
-    m_vao->create();
-    m_vao->bind();
-    if(m_vbo == nullptr)
-        m_vbo = new QOpenGLBuffer(QOpenGLBuffer::Type::VertexBuffer);
-    m_vbo->create();
-    m_vbo->bind();
-    m_ebo = new QOpenGLBuffer(QOpenGLBuffer::Type::IndexBuffer);
-    m_ebo->create();
-    m_ebo->bind();
+    m_meshes.push_back(mesh);
+    m_meshes.back()->setupMesh();
 
-    m_vbo->allocate(&m_Vertices[0], sizeof(decltype(m_Vertices[0])) * m_Vertices.size());
-    m_ebo->allocate(&m_Indices[0], sizeof(decltype(m_Indices[0])) * m_Indices.size());
-
-    m_functions->glEnableVertexAttribArray(0);
-    m_functions->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), 0);
-
-    m_vbo->release();
-    m_vao->release();
-
-    m_label->setText("Number of vertices: " + QString::number(m_Vertices.size()));
-
-    this->update();
+    m_label->setText("Number of vertices: " + QString::number(mesh->getVerticesNum()));
 
     return true;
 }
@@ -406,4 +332,35 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
 glm::vec2 MyOpenGLWidget::transPoint(glm::vec2 p)
 {
     return (p - (getWindowCenter()));
+}
+
+void MyOpenGLWidget::exportPLY(QFile &file)
+{
+//    QTextStream out(&file);
+//    out << "ply\nformat ascii 1.0\ncomment Meshware5994\n";
+
+//    unsigned num_vertices = 0, num_indices = 0;
+//    for(auto i : m_meshes){
+//        num_vertices += i->getVerticesNum();
+//        num_indices += i->getIndicesNum();
+//    }
+
+//    out <<  "element vertex " << num_vertices << endl;
+//    out << "property float32 x\nproperty float32 y\nproperty float32 z\n";
+//    out << "element face " << num_indices << endl;
+//    out << "end_header" << endl;
+
+//    decltype (m_meshes[0]->indices.size()) index;
+
+//    for(auto i : m_meshes){
+//        for(auto v : i->vertices){
+//            out << v.Position.x << ' ' << v.Position.y << v.Position.z << endl;
+//        }
+//    }
+
+//    for(auto i : m_meshes){
+//        for(unsigned int j=0; j<i->getIndicesNum()/2; j++){
+//            out << "3";
+//        }
+//    }
 }

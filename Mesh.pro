@@ -21,7 +21,9 @@ SOURCES += \
 
 HEADERS += \
     Camera.h \
+    Mesh.h \
     MyOpenGLWidget.h \
+    Shader.h \
     mainwindow.h
 
 # Default rules for deployment.

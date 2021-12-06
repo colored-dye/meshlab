@@ -12,7 +12,9 @@ public:
     MainWindow(QMainWindow *parent = nullptr);
     ~MainWindow() {}
 
+protected slots:
     void open();
+    void save();
     void showAxis();
     void showEdge();
     void showVert();

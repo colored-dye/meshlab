@@ -14,6 +14,8 @@ MainWindow::MainWindow(QMainWindow *parent)
     // menu功能
     // 打开文件,导入模型
     connect(ui.actionOpen, &QAction::triggered, this, &MainWindow::open);
+    // 导出模型
+    connect(ui.actionSave, &QAction::triggered, this, &MainWindow::save);
     // 显示坐标轴
     connect(ui.actionShow_Axis, &QAction::toggled, this, &MainWindow::showAxis);
     // 显示线框
@@ -27,14 +29,30 @@ void MainWindow::open()
     QString fileName = QFileDialog::getOpenFileName(this, "Open the file");
     if(fileName.isEmpty())
         return;
-//    QFile file(fileName);
-//    m_currentFile = fileName;
-//    if (!file.open(QIODevice::ReadOnly | QFile::Text)) {
-//        QMessageBox::warning(this, "Warning", "Cannot open file: " + file.errorString());
-//        return;
-//    }
-    setWindowTitle(fileName);
+
     ui.centralwidget->loadVertexFromFile(fileName);
+
+    if(fileName.length() > 20){
+        fileName = fileName.split('/').back();
+    }
+    setWindowTitle(fileName);
+    ui.centralwidget->update();
+}
+
+void MainWindow::save()
+{
+    QString fileName;
+    fileName = QFileDialog::getSaveFileName(this, "Save");
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QFile::Text)) {
+//        QMessageBox::warning(this, "Warning", "Cannot save file: " + file.errorString());
+        return;
+    }
+
+    ui.centralwidget->exportPLY(file);
+
+    file.close();
 }
 
 void MainWindow::showAxis()
