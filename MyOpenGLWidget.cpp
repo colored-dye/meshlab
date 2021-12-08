@@ -17,8 +17,8 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
     // 显示网格边
     m_showEdge = true;
 
-    m_minPoint = glm::vec3(1000, 1000, 1000);
-    m_maxPoint = glm::vec3(-1000, -1000, -1000);
+//    m_minPoint = glm::vec3(1000, 1000, 1000);
+//    m_maxPoint = glm::vec3(-1000, -1000, -1000);
 
 //    this->grabKeyboard();
 }
@@ -107,16 +107,43 @@ void MyOpenGLWidget::wheelEvent(QWheelEvent *event)
 {
     if(event->delta() < 0){
         // 放大
-        m_scaleRatio += 1.5f;
+        if(m_scaleRatio < 0.00011f)
+            m_scaleRatio = 0.001f;
+        else if(m_scaleRatio < 0.05f){
+            m_scaleRatio += 0.01f;
+        }else if(m_scaleRatio < 0.1f){
+            m_scaleRatio += 0.05f;
+        }else if(m_scaleRatio < 1.0f){
+            m_scaleRatio += 0.1f;
+        }else if(m_scaleRatio < 2.0f){
+            m_scaleRatio += 0.3f;
+        }else if(m_scaleRatio < 5.0f){
+            m_scaleRatio += 0.5f;
+        }else{
+            m_scaleRatio += 1.5f;
+        }
         m_scale.setToIdentity();
         m_scale.scale(m_scaleRatio);
     }else{
         // 缩小
-        if(m_scaleRatio > 1.5f + 0.01f){
+        if(m_scaleRatio < 0.0011f)
+            m_scaleRatio = 0.001f;
+        else if(m_scaleRatio < 0.05f){
+            m_scaleRatio -= 0.01f;
+        }else if(m_scaleRatio < 0.1f){
+            m_scaleRatio -= 0.05f;
+        }else if(m_scaleRatio < 1.0f){
+            m_scaleRatio -= 0.1f;
+        }else if(m_scaleRatio < 2.0f){
+            m_scaleRatio -= 0.3f;
+        }else if(m_scaleRatio < 5.0f){
+            m_scaleRatio -= 0.5f;
+        }else{
             m_scaleRatio -= 1.5f;
-            m_scale.setToIdentity();
-            m_scale.scale(m_scaleRatio);
         }
+
+        m_scale.setToIdentity();
+        m_scale.scale(m_scaleRatio);
     }
 
     m_label->setText("Zoom ratio: " + QString::number(m_scaleRatio));
@@ -220,97 +247,52 @@ void MyOpenGLWidget::drawAxis()
             m_shader_axis[i]->setMat4("translation", m_trans_axis);
             m_shader_axis[i]->setMat4("scale", m_scale);
 
-            m_mesh_axis[i]->DrawEdge(m_shader_axis[i], m_showAxis);
-
-                if(m_functions->glGetError() != GL_NO_ERROR){
-                    QMessageBox::warning(this, "Warning", "Error");
-                }
+//            m_mesh_axis[i]->DrawEdge(m_shader_axis[i], m_showAxis);
+            unsigned int j0, j1;
+            std::vector<Vertex> &v = m_mesh_axis[i]->vertices;
+            glBegin(GL_LINES);
+            j0 = m_mesh_axis[i]->indices[0];
+            j1 = m_mesh_axis[i]->indices[1];
+            glVertex3f(v[j0].Position.x, v[j0].Position.y, v[j0].Position.z);
+            glVertex3f(v[j1].Position.x, v[j1].Position.y, v[j1].Position.z);
+            glEnd();
 
             m_shader_axis[i]->release();
         }
     }
 }
 
-bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
+bool MyOpenGLWidget::loadMesh(QString fileName)
 {
-    QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly | QFile::Text)) {
-        QMessageBox::warning(this, "Warning", "Cannot open file: " + file.errorString());
+    Mesh *mesh = new Mesh(m_functions);
+
+//    switch(fileType){
+//    case F_PLY:
+//        importPLY_VertEdgeFace(fileName.toStdString().c_str(), mesh);
+//        break;
+//    case F_OBJ:
+//        importOBJ(fileName.toStdString().c_str(), mesh);
+//        break;
+//    default:
+//        QMessageBox::warning(this, "Warning", "Unknown file type: ." + fileName.split('.').back());
+//        break;
+//    }
+
+    if(!import_all_types(fileName.toStdString().c_str(), mesh)){
+        m_label->setText("Failed to import mesh: " + fileName);
         return false;
     }
 
-    Mesh *mesh = new Mesh(m_functions);
-
-    char buf[128];
-    Vertex v;
-
-    bool isPLY = false;
-    while(file.readLine(buf, sizeof(buf)) != -1){
-        // PLY格式文件需要特殊处理
-        // 如果不是PLY文件,默认认为只有点的坐标
-        if(strstr(buf, "ply")){
-            isPLY = true;
-            break;
-        }
-        sscanf_s(buf, "%f %f %f", &v.Position.x, &v.Position.y, &v.Position.z);
-        mesh->pushVertex(v);
+    m_minPoint = glm::vec3(1000, 1000, 1000);
+    m_maxPoint = glm::vec3(-1000, -1000, -1000);
+    for(auto &i : mesh->vertices){
+        m_maxPoint.x = fmax(m_maxPoint.x, i.Position.x);
+        m_maxPoint.y = fmax(m_maxPoint.y, i.Position.y);
+        m_maxPoint.z = fmax(m_maxPoint.z, i.Position.z);
+        m_minPoint.x = fmin(m_minPoint.x, i.Position.x);
+        m_minPoint.y = fmin(m_minPoint.y, i.Position.y);
+        m_minPoint.z = fmin(m_minPoint.z, i.Position.z);
     }
-    // 解析PLY文件
-    if(isPLY){
-        while((file.readLine(buf, sizeof(buf)) != -1) && !strstr(buf, "element vertex"))
-            ;
-        unsigned num_vertex, num_face;
-        num_vertex = num_face = 0;
-        if(file.atEnd()){
-            QMessageBox::warning(this, "Warning", "Invaid PLY format! File: " + file.errorString());
-            return false;
-        }
-        sscanf_s(buf, "element vertex %lu", &num_vertex);
-        while((file.readLine(buf, sizeof(buf)) != -1) && !strstr(buf, "element face"))
-            ;
-        if(file.atEnd()){
-            QMessageBox::warning(this, "Warning", "Invaid PLY format! File: " + file.errorString());
-            return false;
-        }
-        sscanf_s(buf, "element face %lu", &num_face);
-        while((file.readLine(buf, sizeof(buf)) != -1) && !strstr(buf, "end_header"))
-            ;
-        for(unsigned int i=0; i<num_vertex; i++){
-            if(file.readLine(buf, sizeof(buf)) != -1){
-                sscanf_s(buf, "%f %f %f", &v.Position.x, &v.Position.y, &v.Position.z);
-                mesh->pushVertex(v);
-                m_minPoint.x = fmin(m_minPoint.x, v.Position.x);
-                m_minPoint.y = fmin(m_minPoint.y, v.Position.y);
-                m_minPoint.z = fmin(m_minPoint.z, v.Position.z);
-                m_maxPoint.x = fmax(m_maxPoint.x, v.Position.x);
-                m_maxPoint.y = fmax(m_maxPoint.y, v.Position.y);
-                m_maxPoint.z = fmax(m_maxPoint.z, v.Position.z);
-            }else{
-                QMessageBox::warning(this, "Warning", "Vertex number does not fit! File: " + file.errorString());
-                return false;
-            }
-        }
-        for(unsigned int i=0; i<num_face; i++){
-            if(file.readLine(buf, sizeof(buf)) != -1){
-                unsigned int facen; // face的顶点数,一般为3
-                std::stringstream ss(buf);
-                ss >> facen;
-                unsigned int vert0, vert1;
-                ss >> vert0;
-                mesh->pushIndex(vert0);
-                for(unsigned int i=1; i<facen; i++){
-                    ss >> vert1;
-                    mesh->pushIndex(vert1);
-                    mesh->pushIndex(vert1);
-                }
-                mesh->pushIndex(vert0);
-            }else{
-                QMessageBox::warning(this, "Warning", "Face number does not fit! File: " + file.errorString());
-                return false;
-            }
-        }
-    }
-    file.close();
 
     // 计算模型平移矩阵
     m_trans.setToIdentity();
@@ -318,7 +300,7 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
     m_trans_axis = m_trans;
     // 计算模型缩放矩阵
     m_scale.setToIdentity();
-    m_scaleRatio = fmax(fmax(m_maxPoint.x, m_maxPoint.y), m_maxPoint.z) * 40.0f;
+    m_scaleRatio = fmax(fmax((m_maxPoint.x - m_minPoint.x), (m_maxPoint.y - m_minPoint.y)), (m_maxPoint.z - m_minPoint.z)) / fmin(this->width(), this->height()) * 400 * 40.0f;
     m_scale.scale(m_scaleRatio);
 
     m_meshes.push_back(mesh);
@@ -329,38 +311,13 @@ bool MyOpenGLWidget::loadVertexFromFile(QString fileName)
     return true;
 }
 
-glm::vec2 MyOpenGLWidget::transPoint(glm::vec2 p)
+bool MyOpenGLWidget::exportMesh(QString file)
 {
-    return (p - (getWindowCenter()));
-}
+    if(!export_all_types(file.toStdString().c_str(), m_meshes[0])){
+        m_label->setText("Failed to export mesh: " + file);
+        return false;
+    }
 
-void MyOpenGLWidget::exportPLY(QFile &file)
-{
-//    QTextStream out(&file);
-//    out << "ply\nformat ascii 1.0\ncomment Meshware5994\n";
-
-//    unsigned num_vertices = 0, num_indices = 0;
-//    for(auto i : m_meshes){
-//        num_vertices += i->getVerticesNum();
-//        num_indices += i->getIndicesNum();
-//    }
-
-//    out <<  "element vertex " << num_vertices << endl;
-//    out << "property float32 x\nproperty float32 y\nproperty float32 z\n";
-//    out << "element face " << num_indices << endl;
-//    out << "end_header" << endl;
-
-//    decltype (m_meshes[0]->indices.size()) index;
-
-//    for(auto i : m_meshes){
-//        for(auto v : i->vertices){
-//            out << v.Position.x << ' ' << v.Position.y << v.Position.z << endl;
-//        }
-//    }
-
-//    for(auto i : m_meshes){
-//        for(unsigned int j=0; j<i->getIndicesNum()/2; j++){
-//            out << "3";
-//        }
-//    }
+    m_label->setText("File \"" + file + "\" saved!");
+    return true;
 }

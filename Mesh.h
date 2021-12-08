@@ -15,13 +15,18 @@ struct Vertex {
     // position
     glm::vec3 Position;
     // normal
-//    glm::vec3 Normal;
+    glm::vec3 Normal;
     // texCoords
 //    glm::vec2 TexCoords;
     // tangent
 //    glm::vec3 Tangent;
     // bitangent
 //    glm::vec3 Bitangent;
+    Vertex(float x=0, float y=0, float z=0, float nx=0, float ny=0, float nz=0)
+    {
+        Position = glm::vec3(x, y, z);
+        Normal = glm::vec3(nx, ny, nz);
+    }
 };
 
 //struct Texture {
@@ -65,7 +70,7 @@ public:
     }
 
     void pushVertex(float x, float y, float z){
-        vertices.push_back(Vertex{glm::vec3(x, y, z)});
+        vertices.push_back(Vertex(x, y, z));
     }
 
     void pushIndex(unsigned int ind){
@@ -133,9 +138,16 @@ public:
         if(drawEdge){
 //            func->glDrawElements(GL_LINES, indices.size(), GL_UNSIGNED_INT, 0);
             glBegin(GL_LINES);
-            for(auto i : indices){
-                Vertex &v = vertices[i];
-                glVertex3f(v.Position.x, v.Position.y, v.Position.z);
+            for(auto i=0; i<indices.size(); i+=3){
+                Vertex &v0 = vertices[indices[i]];
+                glVertex3f(v0.Position.x, v0.Position.y, v0.Position.z);
+                Vertex &v1 = vertices[indices[i+1]];
+                glVertex3f(v1.Position.x, v1.Position.y, v1.Position.z);
+                glVertex3f(v1.Position.x, v1.Position.y, v1.Position.z);
+                Vertex &v2 = vertices[indices[i+2]];
+                glVertex3f(v2.Position.x, v2.Position.y, v2.Position.z);
+                glVertex3f(v2.Position.x, v2.Position.y, v2.Position.z);
+                glVertex3f(v0.Position.x, v0.Position.y, v0.Position.z);
             }
             glEnd();
         }

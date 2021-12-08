@@ -26,11 +26,19 @@ MainWindow::MainWindow(QMainWindow *parent)
 
 void MainWindow::open()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, "Open the file");
+    QString fileName;
+    QString filter = tr("PLY(*.ply);;OBJ(*.obj);;XYZ(*.xyz);;TXT(*.txt)");
+
+    QString fileType;
+    QFileDialog::Options options(QFileDialog::DontUseNativeDialog);
+    fileName = QFileDialog::getOpenFileName(this, "Import mesh", QDir::currentPath(), filter, &fileType, options);
     if(fileName.isEmpty())
         return;
 
-    ui.centralwidget->loadVertexFromFile(fileName);
+    if(!ui.centralwidget->loadMesh(fileName)){
+        QMessageBox::warning(this, "Warning", "Cannot open file: " + fileName + "\nFile occupied or format unsupported");
+        return;
+    }
 
     if(fileName.length() > 20){
         fileName = fileName.split('/').back();
@@ -42,17 +50,24 @@ void MainWindow::open()
 void MainWindow::save()
 {
     QString fileName;
-    fileName = QFileDialog::getSaveFileName(this, "Save");
+    QString filter = tr("PLY(*.ply);;OBJ(*.obj);;XYZ(*.xyz);;TXT(*.txt)");
 
-    QFile file(fileName);
-    if (!file.open(QIODevice::WriteOnly | QFile::Text)) {
-//        QMessageBox::warning(this, "Warning", "Cannot save file: " + file.errorString());
+    QString fileType;
+    QFileDialog::Options options(QFileDialog::DontUseNativeDialog);
+    fileName = QFileDialog::getSaveFileName(this, "Import mesh", QDir::currentPath(), filter, &fileType, options);
+    if(fileName.isEmpty())
         return;
+
+    QFileInfo fileInfo(fileName);
+    if(fileInfo.suffix().isEmpty()){
+        fileName += '.' +  fileType.split(".").back().left(3);
     }
 
-    ui.centralwidget->exportPLY(file);
+    if(!ui.centralwidget->exportMesh(fileName)){
+        QMessageBox::warning(this, "Warning", "Cannot save file: " + fileName + "\nFile occupied or format unsupported");
+    }
 
-    file.close();
+    setWindowTitle("Meshware5994");
 }
 
 void MainWindow::showAxis()

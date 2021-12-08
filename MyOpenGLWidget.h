@@ -21,6 +21,8 @@
 #include "Shader.h"
 #include "Mesh.h"
 
+#include "io/import_all_types.h"
+#include "io/export_all_types.h"
 
 class MyOpenGLWidget : public QOpenGLWidget
 {
@@ -31,10 +33,11 @@ public:
 
     QLabel* getLabel() { return m_label; }
     void toggleShowAxis() { m_showAxis = !m_showAxis; }
-    bool loadVertexFromFile(QString fileName);
+    bool loadMesh(QString fileName);
     void toggleShowEdge() { m_showEdge = !m_showEdge; }
     void toggleShowVert() { m_showVert = !m_showVert; }
-    void exportPLY(QFile &file);
+    bool exportMesh(QString file);
+
 protected:
     void initializeGL() override;
     void paintGL() override;
@@ -48,7 +51,7 @@ private:
     void initAxis();
     void drawAxis();
 
-    glm::vec2 transPoint(glm::vec2 p);
+    glm::vec2 transPoint(glm::vec2 p) { return (p - (getWindowCenter())); }
     glm::vec2 getWindowCenter() { return glm::vec2(this->width()/2.0f, this->height()/2.0f); }
 
 private:

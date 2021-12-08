@@ -9,22 +9,32 @@ CONFIG += c++11
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 INCLUDEPATH += \
-    C:/Users/baoyu/Documents/opengl/glm
+    C:/Users/baoyu/Documents/opengl/glm \
+    ./vcglib \
+    ./vcglib/eigenlib
 
 LIBS += \
     opengl32.lib
 
 SOURCES += \
     MyOpenGLWidget.cpp \
+    io/export_all_types.cpp \
+    io/import_all_types.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    ./vcglib/wrap/ply/plylib.cpp
 
 HEADERS += \
     Camera.h \
     Mesh.h \
     MyOpenGLWidget.h \
     Shader.h \
-    mainwindow.h
+    ./io/import_ply.h \
+    ./io/io_modeltype.h \
+    io/MyVCGMesh.h \
+    io/export_all_types.h \
+    io/import_all_types.h \
+    mainwindow.h \
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -35,7 +45,7 @@ DISTFILES += \
     ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/frag.txt \
     ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/vert.txt \
     README \
-    shaders/vert.txt
+    shaders/vert.txt \
 
 FORMS += \
     mainwindow.ui
