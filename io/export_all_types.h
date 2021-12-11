@@ -4,7 +4,6 @@
 #include <vcg/complex/algorithms/create/platonic.h>
 #include <wrap/io_trimesh/export.h>
 
-#include "io/io_modeltype.h"
 #include "io/MyVCGMesh.h"
 #include "Mesh.h"
 

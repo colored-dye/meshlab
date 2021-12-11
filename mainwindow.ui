@@ -46,6 +46,7 @@
     <addaction name="actionShow_Axis"/>
     <addaction name="actionShow_Vert"/>
     <addaction name="actionShow_Edge"/>
+    <addaction name="actionShow_Face"/>
    </widget>
    <widget class="QMenu" name="menuAbout">
     <property name="title">
@@ -77,6 +78,7 @@
    <addaction name="actionShow_Axis"/>
    <addaction name="actionShow_Vert"/>
    <addaction name="actionShow_Edge"/>
+   <addaction name="actionShow_Face"/>
   </widget>
   <action name="actionOpen">
    <property name="icon">
@@ -153,6 +155,21 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionShow_Face">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>images/face.png</normaloff>images/face.png</iconset>
+   </property>
+   <property name="text">
+    <string>Show Face</string>
    </property>
   </action>
  </widget>

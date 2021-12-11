@@ -29,6 +29,19 @@ struct Vertex {
     }
 };
 
+struct Face {
+    // Vertex index reference
+    unsigned V[3];
+    // Face normal
+    glm::vec3 Normal;
+
+    Face(unsigned int V0=-1, unsigned int V1=-1, unsigned int V2=-1, float x=0, float y=0, float z=0)
+    {
+        V[0] = V0, V[1] = V1, V[2] = V2;
+        Normal = glm::vec3(x, y, z);
+    }
+};
+
 //struct Texture {
 //    unsigned int id;
 //    std::string type;
@@ -39,30 +52,32 @@ class Mesh {
 public:
     // mesh Data
     std::vector<Vertex>       vertices;
-    std::vector<unsigned int> indices;
+//    std::vector<unsigned int> indices;
+    std::vector<Face>         faces;
 //    std::vector<Texture>      textures;
 //    QOpenGLVertexArrayObject *VAO;
     QOpenGLFunctions *func;
+    std::string mesh_file;
+    glm::vec3 maxPoint;
+    glm::vec3 minPoint;
+    glm::vec3 centerPoint;
+    const float MINMAXBOUND = 1e6f;
 
     // constructor
     Mesh(QOpenGLFunctions *f)
     {
         func = f;
-//        VAO = nullptr;
-//        VBO = EBO = nullptr;
+
+        maxPoint = glm::vec3(-MINMAXBOUND);
+        minPoint = glm::vec3(MINMAXBOUND);
+        centerPoint = glm::vec3(0.0f);
     }
     ~Mesh(){
-//        if(VAO) delete VAO;
-//        if(VBO) delete VBO;
-//        if(EBO) delete EBO;
+
     }
 
     decltype (vertices.size()) getVerticesNum() {
         return vertices.size();
-    }
-
-    decltype (indices.size()) getIndicesNum() {
-        return indices.size();
     }
 
     void pushVertex(Vertex v){
@@ -73,90 +88,73 @@ public:
         vertices.push_back(Vertex(x, y, z));
     }
 
-    void pushIndex(unsigned int ind){
-        indices.push_back(ind);
-    }
+//    void pushIndex(unsigned int ind){
+//        indices.push_back(ind);
+//    }
 
     // initializes all the buffer objects/arrays
     void setupMesh()
     {
         // create buffers/arrays
-//        if(!VAO)
-//            VAO = new QOpenGLVertexArrayObject();
-//        VAO->create();
-//        VAO->bind();
-
-//        if(!VBO)
-//            VBO = new QOpenGLBuffer(QOpenGLBuffer::Type::VertexBuffer);
-//        VBO->create();
-//        VBO->bind();
-//        VBO->allocate(&vertices[0], sizeof(Vertex) * vertices.size());
-
-//        if(!EBO)
-//            EBO = new QOpenGLBuffer(QOpenGLBuffer::Type::IndexBuffer);
-//        EBO->create();
-//        EBO->bind();
-//        EBO->allocate(&indices[0], sizeof(unsigned int) * indices.size());
 
         if(func->glGetError() != GL_NO_ERROR){
             qDebug() << "Mesh prep error!" << endl;
         }
-
-//        func->glEnableVertexAttribArray(0);
-//        func->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(Vertex), 0);
-
-//        VBO->release();
-//        VAO->release();
     }
 
     // render the mesh
     void DrawVertex(Shader *shader, bool drawVertex=true)
     {
-        // draw mesh
-//        VAO->bind();
-
         if(drawVertex){
-//            func->glDrawArrays(GL_POINTS, 0, vertices.size());
-
+            glDisable(GL_LIGHTING);
             glBegin(GL_POINTS);
             for(auto &i : vertices){
                 glVertex3f(i.Position.x, i.Position.y, i.Position.z);
             }
             glEnd();
+            glEnable(GL_LIGHTING);
         }
-
-//        if(drawEdge)
-//            func->glDrawElements(GL_LINES, indices.size(), GL_UNSIGNED_INT, 0);
-
-        // always good practice to set everything back to defaults once configured.
-//        VAO->release();
     }
 
     void DrawEdge(Shader *shader, bool drawEdge=true)
     {
-//        VAO->bind();
         if(drawEdge){
-//            func->glDrawElements(GL_LINES, indices.size(), GL_UNSIGNED_INT, 0);
+            glDisable(GL_LIGHTING);
             glBegin(GL_LINES);
-            for(auto i=0; i<indices.size(); i+=3){
-                Vertex &v0 = vertices[indices[i]];
-                glVertex3f(v0.Position.x, v0.Position.y, v0.Position.z);
-                Vertex &v1 = vertices[indices[i+1]];
-                glVertex3f(v1.Position.x, v1.Position.y, v1.Position.z);
-                glVertex3f(v1.Position.x, v1.Position.y, v1.Position.z);
-                Vertex &v2 = vertices[indices[i+2]];
-                glVertex3f(v2.Position.x, v2.Position.y, v2.Position.z);
-                glVertex3f(v2.Position.x, v2.Position.y, v2.Position.z);
-                glVertex3f(v0.Position.x, v0.Position.y, v0.Position.z);
+            for(auto &i : faces){
+                glVertex3f(vertices[i.V[0]].Position.x, vertices[i.V[0]].Position.y, vertices[i.V[0]].Position.z);
+                for(int j=1; j<3; j++){
+                    glVertex3f(vertices[i.V[j]].Position.x, vertices[i.V[j]].Position.y, vertices[i.V[j]].Position.z);
+                    glVertex3f(vertices[i.V[j]].Position.x, vertices[i.V[j]].Position.y, vertices[i.V[j]].Position.z);
+                }
+                glVertex3f(vertices[i.V[0]].Position.x, vertices[i.V[0]].Position.y, vertices[i.V[0]].Position.z);
             }
             glEnd();
+            glEnable(GL_LIGHTING);
         }
-//        VAO->release();
     }
 
+     void DrawFace(Shader *shader, bool drawFace=true)
+     {
+         if(drawFace){
+             glDisable(GL_LIGHTING);
+             glBegin(GL_TRIANGLES);
+//            for(auto &i : indices){
+//                glNormal3f(vertices[i].Normal.x, vertices[i].Normal.y, vertices[i].Normal.z);
+//                glVertex3f(vertices[i].Position.x, vertices[i].Position.y, vertices[i].Position.z);
+//            }
+             for(auto &i : faces){
+                 glNormal3f(i.Normal.x, i.Normal.y, i.Normal.z);
+                 for(int j=0; j<3; j++){
+                     glVertex3f(vertices[i.V[j]].Position.x, vertices[i.V[j]].Position.y, vertices[i.V[j]].Position.z);
+                 }
+             }
+             glEnd();
+             glEnable(GL_LIGHTING);
+         }
+     }
+
 private:
-    // render data
-//    QOpenGLBuffer *VBO, *EBO;
 };
 
 #endif // MESH_H

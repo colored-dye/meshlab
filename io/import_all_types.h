@@ -2,7 +2,6 @@
 #define IMPORT_ALL_TYPES_H
 
 
-#include "io/io_modeltype.h"
 #include <wrap/ply/plylib.h>
 #include <wrap/io_trimesh/import.h>
 

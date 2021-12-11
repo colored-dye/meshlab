@@ -18,6 +18,7 @@ protected slots:
     void showAxis();
     void showEdge();
     void showVert();
+    void showFace();
 private:
     Ui::MainWindow ui;
     QLabel *m_label;

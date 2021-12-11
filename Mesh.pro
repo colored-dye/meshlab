@@ -42,7 +42,11 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 DISTFILES += \
-    ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/frag.txt \
+    ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/fragEdge.txt \
+    ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/fragFace.txt \
+    ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/fragVert.txt \
+    ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/lighting_fs \
+    ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/lighting_vs \
     ../build-Mesh-Desktop_Qt_5_12_11_MSVC2017_64bit-Debug/debug/shaders/vert.txt \
     README \
     shaders/vert.txt \

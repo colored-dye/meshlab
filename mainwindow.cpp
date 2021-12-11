@@ -22,16 +22,18 @@ MainWindow::MainWindow(QMainWindow *parent)
     connect(ui.actionShow_Edge, &QAction::toggled, this, &MainWindow::showEdge);
     // 显示顶点
     connect(ui.actionShow_Vert, &QAction::toggled, this, &MainWindow::showVert);
+    // 显示面片
+    connect(ui.actionShow_Face, &QAction::toggled, this, &MainWindow::showFace);
 }
 
 void MainWindow::open()
 {
     QString fileName;
-    QString filter = tr("PLY(*.ply);;OBJ(*.obj);;XYZ(*.xyz);;TXT(*.txt)");
+    QString filter = tr("ALL Files(*.*);;PLY(*.ply);;OBJ(*.obj);;XYZ(*.xyz);;TXT(*.txt);;STL(*.stl)");
 
     QString fileType;
     QFileDialog::Options options(QFileDialog::DontUseNativeDialog);
-    fileName = QFileDialog::getOpenFileName(this, "Import mesh", QDir::currentPath(), filter, &fileType, options);
+    fileName = QFileDialog::getOpenFileName(this, "Import mesh from file", QDir::currentPath(), filter, &fileType, options);
     if(fileName.isEmpty())
         return;
 
@@ -50,11 +52,11 @@ void MainWindow::open()
 void MainWindow::save()
 {
     QString fileName;
-    QString filter = tr("PLY(*.ply);;OBJ(*.obj);;XYZ(*.xyz);;TXT(*.txt)");
+    QString filter = tr("ALL Files(*.*);;PLY(*.ply);;OBJ(*.obj);;XYZ(*.xyz);;TXT(*.txt);;STL(*.stl)");
 
     QString fileType;
     QFileDialog::Options options(QFileDialog::DontUseNativeDialog);
-    fileName = QFileDialog::getSaveFileName(this, "Import mesh", QDir::currentPath(), filter, &fileType, options);
+    fileName = QFileDialog::getSaveFileName(this, "Export mesh to file", QDir::currentPath(), filter, &fileType, options);
     if(fileName.isEmpty())
         return;
 
@@ -85,5 +87,11 @@ void MainWindow::showEdge()
 void MainWindow::showVert()
 {
     ui.centralwidget->toggleShowVert();
+    ui.centralwidget->update();
+}
+
+void MainWindow::showFace()
+{
+    ui.centralwidget->toggleShowFace();
     ui.centralwidget->update();
 }

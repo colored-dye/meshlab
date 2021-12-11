@@ -36,6 +36,7 @@ public:
     bool loadMesh(QString fileName);
     void toggleShowEdge() { m_showEdge = !m_showEdge; }
     void toggleShowVert() { m_showVert = !m_showVert; }
+    void toggleShowFace() { m_showFace = !m_showFace; }
     bool exportMesh(QString file);
 
 protected:
@@ -58,7 +59,8 @@ private:
     QOpenGLFunctions* m_functions;
     // 模型相关: 顶点数组,顶点buffer,索引buffer,着色器
     std::vector<Mesh*> m_meshes;
-    Shader *m_shader;
+    // 着色器
+    Shader *m_shaderVert, *m_shaderEdge, *m_shaderFace;
     // 摄像机
     Camera camera;
     // 鼠标上一帧的位置(世界坐标)
@@ -79,13 +81,12 @@ private:
     // 鼠标平移矩阵
     QMatrix4x4 m_move, m_moveUse, m_moveSave;
 
-    // 模型最大/最小的坐标维度构成的点
-    glm::vec3 m_minPoint;
-    glm::vec3 m_maxPoint;
     // 显示连线
     bool m_showEdge;
     // 显示顶点
     bool m_showVert;
+    // 显示面
+    bool m_showFace;
     // 左下角状态栏
     QLabel *m_label;
 };
