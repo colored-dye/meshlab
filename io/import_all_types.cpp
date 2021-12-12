@@ -32,6 +32,13 @@ bool import_all_types(const char *name, Mesh *ret)
         Face f(i.V(0) - &vertices[0], i.V(1) - &vertices[0], i.V(2) - &vertices[0], \
                 i.N().X(), i.N().Y(), i.N().Z());
         ret->faces.push_back(f);
+
+        ret->indices.push_back(f.V[0]);
+        ret->indices.push_back(f.V[1]);
+        ret->indices.push_back(f.V[1]);
+        ret->indices.push_back(f.V[2]);
+        ret->indices.push_back(f.V[2]);
+        ret->indices.push_back(f.V[0]);
     }
 
     return true;

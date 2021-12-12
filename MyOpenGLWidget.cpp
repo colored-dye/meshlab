@@ -19,6 +19,7 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
     // 显示面片
     m_showFace = true;
 
+    m_meshes = nullptr;
 //    this->grabKeyboard();
 }
 
@@ -30,12 +31,14 @@ MyOpenGLWidget::~MyOpenGLWidget()
     delete m_label;
     for(int i=0; i<3; i++)
         delete m_shader_axis[i];
-    for(auto i : m_meshes)
-        delete i;
+//    for(auto i : m_meshes)
+//        delete i;
+    delete m_meshes;
 }
 
 void MyOpenGLWidget::initializeGL()
 {
+    this->initializeOpenGLFunctions();
     // 获取上下文的OpenGL函数
     m_functions = this->context()->functions();
     // 开启深度检测
@@ -45,51 +48,8 @@ void MyOpenGLWidget::initializeGL()
     m_functions->glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
     glMatrixMode(GL_MODELVIEW);
 
-    GLfloat ambient[] = {0.2, 0.2, 0.2, 1.0};
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient);
-    float position[] = {1.0, 1.0, 1.0, 1.0};
-    float white_light[] = {1.0, 1.0, 1.0, 1.0};
-    float spec[] = {1.0, 1.0, 1.0, 1.0};
-    glLightfv(GL_LIGHT0, GL_POSITION, position);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, white_light);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, spec);
-    glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-    glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
-    if(glGetError() != GL_NO_ERROR){
-        QMessageBox::warning(this, "Warning", "Failed to load lighting");
-    }
-
     // 准备坐标轴
     initAxis();
-
-    // 加载vertex shader和fragment shader
-    QString path = QCoreApplication::applicationDirPath();
-    m_shaderVert = new Shader(path + "/shaders/vert.txt", path + "/shaders/fragVert.txt", m_functions, this);
-    if (m_shaderVert->link()) {
-        qDebug("Shaders link success.");
-    }
-    else {
-        qDebug("Shaders link failed!");
-    }
-
-    m_shaderEdge = new Shader(path + "/shaders/vert.txt", path + "/shaders/fragEdge.txt", m_functions, this);
-    if (m_shaderEdge->link()) {
-        qDebug("Shaders link success.");
-    }
-    else {
-        qDebug("Shaders link failed!");
-    }
-
-    m_shaderFace = new Shader(path + "/shaders/vert.txt", path + "/shaders/fragFace.txt", m_functions, this);
-    if (m_shaderEdge->link()) {
-        qDebug("Shaders link success.");
-    }
-    else {
-        qDebug("Shaders link failed!");
-    }
-
-
 }
 
 void MyOpenGLWidget::paintGL()
@@ -97,67 +57,53 @@ void MyOpenGLWidget::paintGL()
     m_functions->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     m_functions->glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // 背景颜色
 
-    float specular[] = {1.0, 1.0, 1.0, 1.0};
-    float shininess[] = {128.0};
-    glMaterialfv(GL_FRONT, GL_SPECULAR, specular);
-    glMaterialfv(GL_FRONT, GL_SHININESS, shininess);
-
     // 绘制坐标轴
     drawAxis();
 
+    if(!m_meshes)
+        return;
+
     // 绘制顶点
-    m_shaderVert->bind();
-    m_shaderVert->setMat4("view", camera.getViewMatrix());
-    // 投影
-    m_shaderVert->setMat4("projection", camera.getProjectionMatrix());
-    // 变换矩阵
-    m_shaderVert->setMat4("rotation", m_rotation);
-    m_shaderVert->setMat4("translation", m_trans);
-    m_shaderVert->setMat4("scale", m_scale);
-    m_shaderVert->setMat4("move", m_move);
-    if(m_functions->glGetError() != GL_NO_ERROR){
-        QMessageBox::warning(this, "Warning", "Error");
+    if(m_showVert){
+        m_meshes->shader_vertex->bind();
+        m_meshes->shader_vertex->setMat4("view", camera.getViewMatrix());
+        // 投影
+        m_meshes->shader_vertex->setMat4("projection", camera.getProjectionMatrix());
+        // 变换矩阵
+        m_meshes->shader_vertex->setMat4("model", m_scale * m_move * m_rotation * m_trans);
+
+        if(m_functions->glGetError() != GL_NO_ERROR){
+            QMessageBox::warning(this, "Warning", "Show vertex");
+        }
+
+        m_meshes->DrawVertex();
     }
-    for(auto i : m_meshes){
-        i->DrawVertex(m_shaderVert, m_showVert);
-    }
-    m_shaderVert->release();
 
     // 绘制线框
-    m_shaderEdge->bind();
-    m_shaderEdge->setMat4("view", camera.getViewMatrix());
-    // 投影
-    m_shaderEdge->setMat4("projection", camera.getProjectionMatrix());
-    // 变换矩阵
-    m_shaderEdge->setMat4("rotation", m_rotation);
-    m_shaderEdge->setMat4("translation", m_trans);
-    m_shaderEdge->setMat4("scale", m_scale);
-    m_shaderEdge->setMat4("move", m_move);
-    if(m_functions->glGetError() != GL_NO_ERROR){
-        QMessageBox::warning(this, "Warning", "Error");
+    if(m_showEdge){
+        m_meshes->shader_edge->bind();
+        m_meshes->shader_edge->setMat4("view", camera.getViewMatrix());
+        // 投影
+        m_meshes->shader_edge->setMat4("projection", camera.getProjectionMatrix());
+        // 变换矩阵
+        m_meshes->shader_edge->setMat4("model", m_scale * m_move * m_rotation * m_trans);
+        if(m_functions->glGetError() != GL_NO_ERROR){
+            QMessageBox::warning(this, "Warning", "Show Edge");
+        }
+        m_meshes->DrawEdge();
     }
-    for(auto i : m_meshes){
-        i->DrawEdge(m_shaderEdge, m_showEdge);
-    }
-    m_shaderEdge->release();
 
     // 绘制面片
-    m_shaderFace->bind();
-    m_shaderFace->setMat4("view", camera.getViewMatrix());
-    // 投影
-    m_shaderFace->setMat4("projection", camera.getProjectionMatrix());
-    // 变换矩阵
-    m_shaderFace->setMat4("rotation", m_rotation);
-    m_shaderFace->setMat4("translation", m_trans);
-    m_shaderFace->setMat4("scale", m_scale);
-    m_shaderFace->setMat4("move", m_move);
-    if(m_functions->glGetError() != GL_NO_ERROR){
-        QMessageBox::warning(this, "Warning", "Error");
-    }
-    for(auto i : m_meshes){
-        i->DrawFace(m_shaderFace, m_showFace);
-    }
-    m_shaderFace->release();
+   if(m_showFace){
+       m_meshes->shader_face->bind();
+       m_meshes->shader_face->setMat4("view", camera.getViewMatrix());
+       m_meshes->shader_face->setMat4("projection", camera.getProjectionMatrix());
+       m_meshes->shader_face->setMat4("model", m_scale * m_move * m_rotation * m_trans);
+       if(m_functions->glGetError() != GL_NO_ERROR){
+           QMessageBox::warning(this, "Warning", "Show Face");
+       }
+       m_meshes->DrawFace();
+   }
 }
 
 void MyOpenGLWidget::resizeGL(int w, int h)
@@ -183,8 +129,10 @@ void MyOpenGLWidget::wheelEvent(QWheelEvent *event)
             m_scaleRatio += 0.3f;
         }else if(m_scaleRatio < 5.0f){
             m_scaleRatio += 0.5f;
-        }else{
+        }else if(m_scaleRatio < 100.0f){
             m_scaleRatio += 1.5f;
+        }else{
+            m_scaleRatio += 5.0f;
         }
         m_scale.setToIdentity();
         m_scale.scale(m_scaleRatio);
@@ -202,9 +150,13 @@ void MyOpenGLWidget::wheelEvent(QWheelEvent *event)
             m_scaleRatio -= 0.3f;
         }else if(m_scaleRatio < 5.0f){
             m_scaleRatio -= 0.5f;
-        }else{
+        }else if(m_scaleRatio < 100.0f){
             m_scaleRatio -= 1.5f;
+        }else{
+            m_scaleRatio -= 5.0f;
         }
+        if(m_scaleRatio < 0)
+            m_scaleRatio = 0.001f;
 
         m_scale.setToIdentity();
         m_scale.scale(m_scaleRatio);
@@ -272,32 +224,40 @@ void MyOpenGLWidget::initAxis()
                 gl_Position = projection * view * scale * rotation * translation * vec4(posVertex, 1.0f);\n \
              }\n";
 
-    const GLfloat MAX_AXIS = 100.0f;
-    const GLfloat AXIS[] = {
-        0, 0, 0,
-        MAX_AXIS, 0, 0,
-        0, MAX_AXIS, 0,
-        0, 0, MAX_AXIS,
-    };
+//    const GLfloat MAX_AXIS = 100.0f;
+//    const GLfloat AXIS[] = {
+//        0, 0, 0,
+//        MAX_AXIS, 0, 0,
+//        0, MAX_AXIS, 0,
+//        0, 0, MAX_AXIS,
+//    };
 
     for(int i=0; i<3; i++){
-        m_shader_axis[i] = new Shader(axis_vert_shader, axis_frag_shader[i], m_functions, this);
+        m_shader_axis[i] = new Shader(axis_vert_shader, axis_frag_shader[i], this);
         if (m_shader_axis[i]->link()) {
             qDebug("Shaders link success.");
         }
         else {
             qDebug("Shaders link failed!");
         }
-        m_mesh_axis[i] = new Mesh(m_functions);
-        m_mesh_axis[i]->pushVertex(0, 0, 0);
-        m_mesh_axis[i]->pushVertex(AXIS[3*i+3], AXIS[3*i+4], AXIS[3*i+5]);
-        m_mesh_axis[i]->setupMesh();
+//        m_mesh_axis[i] = new Mesh(this);
+//        m_mesh_axis[i]->pushVertex(0, 0, 0);
+//        m_mesh_axis[i]->pushVertex(AXIS[3*i+3], AXIS[3*i+4], AXIS[3*i+5]);
+//        m_mesh_axis[i]->setupMesh();
     }
 }
 
 void MyOpenGLWidget::drawAxis()
 {
     if(m_showAxis){
+        const GLfloat MAX_AXIS = 100.0f;
+        const GLfloat AXIS[] = {
+            0, 0, 0,
+            MAX_AXIS, 0, 0,
+            0, MAX_AXIS, 0,
+            0, 0, MAX_AXIS,
+        };
+
         for(int i=0; i<3; i++){
             m_shader_axis[i]->bind();
             // 摄像机
@@ -309,10 +269,9 @@ void MyOpenGLWidget::drawAxis()
             m_shader_axis[i]->setMat4("translation", m_trans_axis);
             m_shader_axis[i]->setMat4("scale", m_scale);
 
-            std::vector<Vertex> &v = m_mesh_axis[i]->vertices;
             glBegin(GL_LINES);
-            glVertex3f(v[0].Position.x, v[0].Position.y, v[0].Position.z);
-            glVertex3f(v[1].Position.x, v[1].Position.y, v[1].Position.z);
+            glVertex3f(AXIS[0], AXIS[1], AXIS[2]);
+            glVertex3f(AXIS[3+3*i], AXIS[3+3*i+1], AXIS[3+3*i+2]);
             glEnd();
 
             m_shader_axis[i]->release();
@@ -322,7 +281,7 @@ void MyOpenGLWidget::drawAxis()
 
 bool MyOpenGLWidget::loadMesh(QString fileName)
 {
-    Mesh *mesh = new Mesh(m_functions);
+    Mesh *mesh = new Mesh(this);
 
     if(!import_all_types(fileName.toStdString().c_str(), mesh)){
         m_label->setText("Failed to import mesh: " + fileName);
@@ -335,6 +294,7 @@ bool MyOpenGLWidget::loadMesh(QString fileName)
     m_trans.setToIdentity();
     m_trans.translate(-mesh->centerPoint.x, -mesh->centerPoint.y, -mesh->centerPoint.z);
     m_trans_axis = m_trans;
+
     // 计算模型缩放矩阵
     m_scale.setToIdentity();
     m_scaleRatio = fmax(fmax((mesh->maxPoint.x - mesh->minPoint.x), \
@@ -343,8 +303,12 @@ bool MyOpenGLWidget::loadMesh(QString fileName)
             / fmin(this->width(), this->height()) * 400.0f;
     m_scale.scale(m_scaleRatio);
 
-    m_meshes.push_back(mesh);
-    m_meshes.back()->setupMesh();
+//    m_meshes.push_back(mesh);
+//    m_meshes.back()->setupMesh();
+    if(m_meshes)
+        delete m_meshes;
+    m_meshes = mesh;
+    m_meshes->setupMesh();
 
     m_label->setText("Number of vertices: " + QString::number(mesh->getVerticesNum()));
 
@@ -353,7 +317,7 @@ bool MyOpenGLWidget::loadMesh(QString fileName)
 
 bool MyOpenGLWidget::exportMesh(QString file)
 {
-    if(!export_all_types(file.toStdString().c_str(), m_meshes[0])){
+    if(!export_all_types(file.toStdString().c_str(), m_meshes)){
         m_label->setText("Failed to export mesh: " + file);
         return false;
     }

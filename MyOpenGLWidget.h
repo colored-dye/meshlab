@@ -2,7 +2,8 @@
 #define MYOPENGLWIDGET_H
 #include <QOpenGLWidget>
 #include <QMainWindow>
-#include <QOpenGLFunctions>
+//#include <QOpenGLFunctions>
+#include <QOpenGLExtraFunctions>
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLShaderProgram>
@@ -24,7 +25,7 @@
 #include "io/import_all_types.h"
 #include "io/export_all_types.h"
 
-class MyOpenGLWidget : public QOpenGLWidget
+class MyOpenGLWidget : public QOpenGLWidget, public QOpenGLExtraFunctions
 {
     Q_OBJECT
 public:
@@ -58,9 +59,10 @@ private:
 private:
     QOpenGLFunctions* m_functions;
     // 模型相关: 顶点数组,顶点buffer,索引buffer,着色器
-    std::vector<Mesh*> m_meshes;
+    Mesh* m_meshes;
     // 着色器
     Shader *m_shaderVert, *m_shaderEdge, *m_shaderFace;
+    Shader *m_lighting;
     // 摄像机
     Camera camera;
     // 鼠标上一帧的位置(世界坐标)

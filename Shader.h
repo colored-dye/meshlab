@@ -1,55 +1,67 @@
 #ifndef SHADER_H
 #define SHADER_H
 
-#include <QOpenGLFunctions>
+#include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
+#include <QOpenGLWidget>
 #include <QLoggingCategory>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-class Shader {
+class Shader: public QOpenGLShaderProgram
+{
+//    Q_OBJECT
 private:
     QOpenGLFunctions *func;
-    QOpenGLShaderProgram *m_shader;
+//    QOpenGLShaderProgram *m_shader;
 public:
-    Shader(QString vertexPath, QString fragmentPath, QOpenGLFunctions *f, QObject *parent)
+    Shader(QString vertexPath, QString fragmentPath, QOpenGLWidget *w)
+        : QOpenGLShaderProgram(w)
     {
-        func = f;
-        m_shader = new QOpenGLShaderProgram(parent);
-        m_shader->addShaderFromSourceFile(QOpenGLShader::Vertex, vertexPath);
-        m_shader->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentPath);
+        func = w->context()->functions();
+//        m_shader = new QOpenGLShaderProgram(w);
+        addShaderFromSourceFile(QOpenGLShader::Vertex, vertexPath);
+        addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentPath);
     }
-    Shader(const char *vertexProgram, const char *fragmentProgram, QOpenGLFunctions *f, QObject *parent)
+    Shader(const char *vertexProgram, const char *fragmentProgram, QOpenGLWidget *w)
+        : QOpenGLShaderProgram(w)
     {
-        func = f;
-        m_shader = new QOpenGLShaderProgram(parent);
-        m_shader->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexProgram);
-        m_shader->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentProgram);
+        func = w->context()->functions();
+//        m_shader = new QOpenGLShaderProgram(w);
+        addShaderFromSourceCode(QOpenGLShader::Vertex, vertexProgram);
+        addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentProgram);
     }
     ~Shader()
     {
-        delete m_shader;
-    }
-    bool bind()
-    {
-        return m_shader->bind();
     }
     bool link()
     {
-        return m_shader->link();
+        return QOpenGLShaderProgram::link();
     }
-    void release()
+    void setMat4(const char *name, QMatrix4x4 mat)
     {
-        m_shader->release();
+        setUniformValue(name, mat);
     }
-    void setMat4(const char *name, QMatrix4x4 &mat)
+    void setMat4(const char *name, glm::mat4 mat)
     {
-        m_shader->setUniformValue(name, mat);
+        func->glUniformMatrix4fv(uniformLocation(name), 1, GL_FALSE, glm::value_ptr(mat));
     }
-    void setMat4(const char *name, glm::mat4 mat4)
+    void setVec3(const char *name, QVector3D vec)
     {
-        func->glUniformMatrix4fv(m_shader->uniformLocation(name), 1, GL_FALSE, glm::value_ptr(mat4));
+        setUniformValue(name, vec);
+    }
+    void setVec3(const char *name, glm::vec3 vec)
+    {
+        func->glUniform3fv(uniformLocation(name), 3, glm::value_ptr(vec));
+    }
+    void setVec3(const char *name, float x, float y, float z)
+    {
+        setUniformValue(name, QVector3D(x, y, z));
+    }
+    void setFloat(const char *name, float f)
+    {
+        setUniformValue(name, f);
     }
 };
 
