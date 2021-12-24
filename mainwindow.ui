@@ -63,6 +63,7 @@
      <string>Filters</string>
     </property>
     <addaction name="actionSubdivision_Butterfly"/>
+    <addaction name="actionDecimation"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -182,6 +183,11 @@
   <action name="actionSubdivision_Butterfly">
    <property name="text">
     <string>Subdivision: Butterfly</string>
+   </property>
+  </action>
+  <action name="actionDecimation">
+   <property name="text">
+    <string>Decimation</string>
    </property>
   </action>
  </widget>

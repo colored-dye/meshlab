@@ -17,6 +17,7 @@ LIBS += \
     opengl32.lib
 
 SOURCES += \
+    MeshDecimation/mdMeshDecimator.cpp \
     MeshSubdivision/Butterfly.cpp \
     MeshSubdivision/Mesh.cpp \
     MeshSubdivision/MeshData.cpp \
@@ -31,6 +32,10 @@ SOURCES += \
 HEADERS += \
     Camera.h \
     Mesh.h \
+    MeshDecimation/mdMeshDecimator.h \
+    MeshDecimation/mdSArray.h \
+    MeshDecimation/mdVector.h \
+    MeshDecimation/mdVector.inl \
     MeshSubdivision/Butterfly.h \
     MeshSubdivision/Mesh.h \
     MeshSubdivision/MeshData.h \

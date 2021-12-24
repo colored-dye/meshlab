@@ -3,6 +3,9 @@
 #include <QtMath>
 #include <QTime>
 #include "MeshSubdivision/Butterfly.h"
+#include "MeshDecimation/mdMeshDecimator.h"
+#include <QInputDialog>
+#include "Decimation.h"
 
 MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
   : QOpenGLWidget(parent)
@@ -27,15 +30,13 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
 
 MyOpenGLWidget::~MyOpenGLWidget()
 {
-//    delete m_shaderVert;
-//    delete m_shaderEdge;
-//    delete m_shaderFace;
-    delete m_label;
+    if(m_label)
+        delete m_label;
     for(int i=0; i<3; i++)
-        delete m_shader_axis[i];
-//    for(auto i : m_meshes)
-//        delete i;
-    delete m_meshes;
+        if(m_shader_axis[i])
+            delete m_shader_axis[i];
+    if(m_meshes)
+        delete m_meshes;
 }
 
 void MyOpenGLWidget::initializeGL()
@@ -226,14 +227,6 @@ void MyOpenGLWidget::initAxis()
                 gl_Position = projection * view * scale * rotation * translation * vec4(posVertex, 1.0f);\n \
              }\n";
 
-//    const GLfloat MAX_AXIS = 100.0f;
-//    const GLfloat AXIS[] = {
-//        0, 0, 0,
-//        MAX_AXIS, 0, 0,
-//        0, MAX_AXIS, 0,
-//        0, 0, MAX_AXIS,
-//    };
-
     for(int i=0; i<3; i++){
         m_shader_axis[i] = new Shader(axis_vert_shader, axis_frag_shader[i], this);
         if (m_shader_axis[i]->link()) {
@@ -242,10 +235,6 @@ void MyOpenGLWidget::initAxis()
         else {
             qDebug("Shaders link failed!");
         }
-//        m_mesh_axis[i] = new Mesh(this);
-//        m_mesh_axis[i]->pushVertex(0, 0, 0);
-//        m_mesh_axis[i]->pushVertex(AXIS[3*i+3], AXIS[3*i+4], AXIS[3*i+5]);
-//        m_mesh_axis[i]->setupMesh();
     }
 }
 
@@ -305,14 +294,14 @@ bool MyOpenGLWidget::loadMesh(QString fileName)
             / fmin(this->width(), this->height()) * 400.0f;
     m_scale.scale(m_scaleRatio);
 
-//    m_meshes.push_back(mesh);
-//    m_meshes.back()->setupMesh();
     if(m_meshes)
         delete m_meshes;
     m_meshes = mesh;
     m_meshes->setupMesh();
 
-    m_label->setText("Number of vertices: " + QString::number(mesh->getVerticesNum()));
+    QString label;
+    label = QString::number(m_meshes->vertices.size()) + " Vertices, " + QString::number(m_meshes->faces.size()) + " Faces.";
+    m_label->setText(label);
 
     return true;
 }
@@ -330,15 +319,15 @@ bool MyOpenGLWidget::exportMesh(QString file)
 
 void MyOpenGLWidget::butterflySubdivision()
 {
-    QTime time;
-    time.start();
-
-    m_label->setText("Subdividing mesh...Please wait");
-
     if(m_meshes == NULL || m_meshes->vertices.size() == 0){
         QMessageBox::warning(this, "Warning", "No mesh loaded!");
         return;
     }
+
+    QTime time;
+    time.start();
+
+    m_label->setText("Subdividing mesh... Please wait");
 
     subdiv::Mesh subdiv_mesh;
     size_t *vIds = NULL; // vertex id in a face
@@ -360,9 +349,12 @@ void MyOpenGLWidget::butterflySubdivision()
     }
 
     qDebug() << "Vertices: " << subdiv_mesh.verts.size() << " Edges: " << subdiv_mesh.edges.size() << " Faces: " << subdiv_mesh.faces.size() << endl;
+
     Butterfly butterfly;
     subdiv::Mesh *ret_mesh = NULL;
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     ret_mesh = butterfly.run(&subdiv_mesh);
+
     qDebug() << "Vertices: " << ret_mesh->verts.size() << " Edges: " << ret_mesh->edges.size() << " Faces: " << ret_mesh->faces.size() << endl;
 
     delete m_meshes;
@@ -377,8 +369,11 @@ void MyOpenGLWidget::butterflySubdivision()
     for(auto &face : ret_mesh->faces){
             Face f(face->verts[0]->id, face->verts[1]->id, face->verts[2]->id);
             m_meshes->faces.push_back(f);
-            for(int i=0; i<3; i++)
+
+            m_meshes->indices.push_back(f.V[0]);
+            for(int i=1; i<3; i++)
                 m_meshes->indices.push_back(f.V[i]);
+            m_meshes->indices.push_back(f.V[0]);
     }
 
     delete ret_mesh;
@@ -386,6 +381,138 @@ void MyOpenGLWidget::butterflySubdivision()
     m_meshes->setupMesh();
 
     QString label;
-    label = QString::number(m_meshes->vertices.size()) + " Vertices, " + QString::number(m_meshes->faces.size()) + " Faces. Time elapsed: " + QString::number(time.elapsed());
+    label = QString::number(m_meshes->vertices.size()) + " Vertices, " + QString::number(m_meshes->faces.size()) + " Faces. Time elapsed: " + QString::number(time.elapsed() / 1000.0f) + "s";
     m_label->setText(label);
+}
+
+void decimation_callback(QLabel *label, const char *msg)
+{
+    qDebug() << msg;
+    label->setText(msg);
+}
+
+void MyOpenGLWidget::Decimation()
+{
+    if(!m_meshes || m_meshes->vertices.size() == 0){
+        QMessageBox::warning(this, "Warning", "No mesh loaded!");
+        return;
+    }
+
+    m_label->setText("Decimating mesh... Please wait");
+
+    QTime time;
+    time.start();
+
+    vector <MeshDecimation::Vec3<float>> points;
+    vector <MeshDecimation::Vec3<int>> triangles;
+
+    for(auto &vert : m_meshes->vertices){
+        MeshDecimation::Vec3<float> v(vert.Position.x, vert.Position.y, vert.Position.z);
+        points.push_back(v);
+    }
+
+    for(auto &face : m_meshes->faces){
+        MeshDecimation::Vec3<int> f(face.V[0], face.V[1], face.V[2]);
+        triangles.push_back(f);
+    }
+
+    MeshDecimation::MeshDecimator decimator;
+
+    decimator.SetCallBack(decimation_callback);
+    decimator.Initialize(points.size(), triangles.size(), &points[0], &triangles[0]);
+
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+
+    int nPoint, nTriangle;
+
+    nPoint = QInputDialog::getInt(this, "Input target number of Vertices", "Default: " + QString::number((int)(0.75f * points.size())) + " / " + QString::number(points.size()),
+                         (int)(0.75f * points.size()), 0, points.size(), 10, NULL, Qt::WindowCloseButtonHint | Qt::MSWindowsFixedSizeDialogHint);
+    nTriangle = QInputDialog::getInt(this, "Input target number of Faces", "Default: " + QString::number((int)(0.75f * triangles.size())) + " / " + QString::number(triangles.size()),
+                         (int)(0.75f * triangles.size()), 0, triangles.size(), 10, NULL, Qt::WindowCloseButtonHint | Qt::MSWindowsFixedSizeDialogHint);
+
+    decimator.Decimate(m_label, nPoint, nTriangle, 1.0);
+
+    delete m_meshes;
+    m_meshes = new Mesh(this);
+
+    points.clear();
+    points.resize(decimator.GetNVertices());
+    triangles.clear();
+    triangles.resize(decimator.GetNTriangles());
+
+    decimator.GetMeshData(&points[0], &triangles[0]);
+
+    for(auto &vert : points){
+        Vertex v(vert.X(), vert.Y(), vert.Z());
+        m_meshes->vertices.push_back(v);
+    }
+
+    for(auto &face : triangles){
+        Face f(face.X(), face.Y(), face.Z());
+        m_meshes->faces.push_back(f);
+
+        m_meshes->indices.push_back(f.V[0]);
+        for(int i=1; i<3; i++)
+            m_meshes->indices.push_back(f.V[i]);
+        m_meshes->indices.push_back(f.V[0]);
+    }
+
+    m_meshes->setupMesh();
+
+    QString label;
+    label = QString::number(m_meshes->vertices.size()) + " Vertices, " + QString::number(m_meshes->faces.size()) + " Faces. Time elapsed: " + QString::number(time.elapsed() / 1000.0f) + "s";
+    m_label->setText(label);
+}
+
+void MyOpenGLWidget::keyPressEvent(QKeyEvent *event)
+{
+    if(event->modifiers() == Qt::Key_Control){
+        if(event->key() == Qt::Key_Plus){
+            // 放大
+            if(m_scaleRatio < 0.00011f)
+                m_scaleRatio = 0.001f;
+            else if(m_scaleRatio < 0.05f){
+                m_scaleRatio += 0.005f;
+            }else if(m_scaleRatio < 0.1f){
+                m_scaleRatio += 0.05f;
+            }else if(m_scaleRatio < 1.0f){
+                m_scaleRatio += 0.1f;
+            }else if(m_scaleRatio < 2.0f){
+                m_scaleRatio += 0.3f;
+            }else if(m_scaleRatio < 5.0f){
+                m_scaleRatio += 0.5f;
+            }else if(m_scaleRatio < 100.0f){
+                m_scaleRatio += 1.5f;
+            }else{
+                m_scaleRatio += 5.0f;
+            }
+            m_scale.setToIdentity();
+            m_scale.scale(m_scaleRatio);
+        }
+        if(event->key() == Qt::Key_Minus){
+            // 缩小
+            if(m_scaleRatio < 0.0011f)
+                m_scaleRatio = 0.001f;
+            else if(m_scaleRatio < 0.05f){
+                m_scaleRatio -= 0.005f;
+            }else if(m_scaleRatio < 0.1f){
+                m_scaleRatio -= 0.05f;
+            }else if(m_scaleRatio < 1.0f){
+                m_scaleRatio -= 0.1f;
+            }else if(m_scaleRatio < 2.0f){
+                m_scaleRatio -= 0.3f;
+            }else if(m_scaleRatio < 5.0f){
+                m_scaleRatio -= 0.5f;
+            }else if(m_scaleRatio < 100.0f){
+                m_scaleRatio -= 1.5f;
+            }else{
+                m_scaleRatio -= 5.0f;
+            }
+            if(m_scaleRatio < 0)
+                m_scaleRatio = 0.001f;
+
+            m_scale.setToIdentity();
+            m_scale.scale(m_scaleRatio);
+        }
+    }
 }

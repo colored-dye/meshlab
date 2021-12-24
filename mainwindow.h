@@ -20,6 +20,7 @@ protected slots:
     void showVert();
     void showFace();
     void subdivision();
+    void decimation();
 private:
     Ui::MainWindow ui;
     QLabel *m_label;

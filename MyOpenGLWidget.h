@@ -1,8 +1,8 @@
 #ifndef MYOPENGLWIDGET_H
 #define MYOPENGLWIDGET_H
+
 #include <QOpenGLWidget>
 #include <QMainWindow>
-//#include <QOpenGLFunctions>
 #include <QOpenGLExtraFunctions>
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
@@ -42,6 +42,7 @@ public:
 
     // Mesh subdivision & simplification
     void butterflySubdivision();
+    void Decimation();
 
 protected:
     void initializeGL() override;
@@ -51,6 +52,7 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     void initAxis();
@@ -72,7 +74,6 @@ private:
     glm::vec2 m_lastPos;
     // 坐标轴
     bool m_showAxis;
-    Mesh *m_mesh_axis[3];
     Shader *m_shader_axis[3];
     QMatrix4x4 m_trans_axis;
 

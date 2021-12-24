@@ -26,6 +26,8 @@ MainWindow::MainWindow(QMainWindow *parent)
     connect(ui.actionShow_Face, &QAction::toggled, this, &MainWindow::showFace);
     // 稠密: Butterfly算法
     connect(ui.actionSubdivision_Butterfly, &QAction::triggered, this, &MainWindow::subdivision);
+    // 稀疏
+    connect(ui.actionDecimation, &QAction::triggered, this, &MainWindow::decimation);
 }
 
 void MainWindow::open()
@@ -101,5 +103,11 @@ void MainWindow::showFace()
 void MainWindow::subdivision()
 {
     ui.centralwidget->butterflySubdivision();
+    ui.centralwidget->update();
+}
+
+void MainWindow::decimation()
+{
+    ui.centralwidget->Decimation();
     ui.centralwidget->update();
 }
