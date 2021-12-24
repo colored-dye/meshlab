@@ -58,8 +58,15 @@
      <string>Help</string>
     </property>
    </widget>
+   <widget class="QMenu" name="menuFilters">
+    <property name="title">
+     <string>Filters</string>
+    </property>
+    <addaction name="actionSubdivision_Butterfly"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuFilters"/>
    <addaction name="menuHelp"/>
    <addaction name="menuAbout"/>
   </widget>
@@ -170,6 +177,11 @@
    </property>
    <property name="text">
     <string>Show Face</string>
+   </property>
+  </action>
+  <action name="actionSubdivision_Butterfly">
+   <property name="text">
+    <string>Subdivision: Butterfly</string>
    </property>
   </action>
  </widget>

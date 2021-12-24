@@ -24,6 +24,8 @@ MainWindow::MainWindow(QMainWindow *parent)
     connect(ui.actionShow_Vert, &QAction::toggled, this, &MainWindow::showVert);
     // 显示面片
     connect(ui.actionShow_Face, &QAction::toggled, this, &MainWindow::showFace);
+    // 稠密: Butterfly算法
+    connect(ui.actionSubdivision_Butterfly, &QAction::triggered, this, &MainWindow::subdivision);
 }
 
 void MainWindow::open()
@@ -93,5 +95,11 @@ void MainWindow::showVert()
 void MainWindow::showFace()
 {
     ui.centralwidget->toggleShowFace();
+    ui.centralwidget->update();
+}
+
+void MainWindow::subdivision()
+{
+    ui.centralwidget->butterflySubdivision();
     ui.centralwidget->update();
 }

@@ -55,8 +55,6 @@ public:
     QOpenGLVertexArrayObject *VAO;
     QOpenGLBuffer *VBO, *EBO, *FBO;
 
-//    GLuint ebo, vbo, fbo;
-
     Shader *shader_vertex, *shader_edge, *shader_face;
 
     std::string mesh_file;

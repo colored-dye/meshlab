@@ -40,6 +40,9 @@ public:
     void toggleShowFace() { m_showFace = !m_showFace; }
     bool exportMesh(QString file);
 
+    // Mesh subdivision & simplification
+    void butterflySubdivision();
+
 protected:
     void initializeGL() override;
     void paintGL() override;
@@ -61,7 +64,7 @@ private:
     // 模型相关: 顶点数组,顶点buffer,索引buffer,着色器
     Mesh* m_meshes;
     // 着色器
-    Shader *m_shaderVert, *m_shaderEdge, *m_shaderFace;
+//    Shader *m_shaderVert, *m_shaderEdge, *m_shaderFace;
     Shader *m_lighting;
     // 摄像机
     Camera camera;

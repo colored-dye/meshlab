@@ -19,6 +19,7 @@ protected slots:
     void showEdge();
     void showVert();
     void showFace();
+    void subdivision();
 private:
     Ui::MainWindow ui;
     QLabel *m_label;

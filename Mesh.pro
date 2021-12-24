@@ -17,6 +17,10 @@ LIBS += \
     opengl32.lib
 
 SOURCES += \
+    MeshSubdivision/Butterfly.cpp \
+    MeshSubdivision/Mesh.cpp \
+    MeshSubdivision/MeshData.cpp \
+    MeshSubdivision/Point.cpp \
     MyOpenGLWidget.cpp \
     io/export_all_types.cpp \
     io/import_all_types.cpp \
@@ -27,6 +31,10 @@ SOURCES += \
 HEADERS += \
     Camera.h \
     Mesh.h \
+    MeshSubdivision/Butterfly.h \
+    MeshSubdivision/Mesh.h \
+    MeshSubdivision/MeshData.h \
+    MeshSubdivision/Point.h \
     MyOpenGLWidget.h \
     Shader.h \
     ./io/import_ply.h \

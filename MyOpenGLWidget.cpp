@@ -1,6 +1,8 @@
 #include "MyOpenGLWidget.h"
 #include <QCoreApplication>
 #include <QtMath>
+#include <QTime>
+#include "MeshSubdivision/Butterfly.h"
 
 MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
   : QOpenGLWidget(parent)
@@ -25,9 +27,9 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
 
 MyOpenGLWidget::~MyOpenGLWidget()
 {
-    delete m_shaderVert;
-    delete m_shaderEdge;
-    delete m_shaderFace;
+//    delete m_shaderVert;
+//    delete m_shaderEdge;
+//    delete m_shaderFace;
     delete m_label;
     for(int i=0; i<3; i++)
         delete m_shader_axis[i];
@@ -94,16 +96,16 @@ void MyOpenGLWidget::paintGL()
     }
 
     // 绘制面片
-   if(m_showFace){
-       m_meshes->shader_face->bind();
-       m_meshes->shader_face->setMat4("view", camera.getViewMatrix());
-       m_meshes->shader_face->setMat4("projection", camera.getProjectionMatrix());
-       m_meshes->shader_face->setMat4("model", m_scale * m_move * m_rotation * m_trans);
-       if(m_functions->glGetError() != GL_NO_ERROR){
-           QMessageBox::warning(this, "Warning", "Show Face");
-       }
-       m_meshes->DrawFace();
-   }
+//   if(m_showFace){
+//       m_meshes->shader_face->bind();
+//       m_meshes->shader_face->setMat4("view", camera.getViewMatrix());
+//       m_meshes->shader_face->setMat4("projection", camera.getProjectionMatrix());
+//       m_meshes->shader_face->setMat4("model", m_scale * m_move * m_rotation * m_trans);
+//       if(m_functions->glGetError() != GL_NO_ERROR){
+//           QMessageBox::warning(this, "Warning", "Show Face");
+//       }
+////       m_meshes->DrawFace();
+//   }
 }
 
 void MyOpenGLWidget::resizeGL(int w, int h)
@@ -324,4 +326,66 @@ bool MyOpenGLWidget::exportMesh(QString file)
 
     m_label->setText("File \"" + file + "\" saved!");
     return true;
+}
+
+void MyOpenGLWidget::butterflySubdivision()
+{
+    QTime time;
+    time.start();
+
+    m_label->setText("Subdividing mesh...Please wait");
+
+    if(m_meshes == NULL || m_meshes->vertices.size() == 0){
+        QMessageBox::warning(this, "Warning", "No mesh loaded!");
+        return;
+    }
+
+    subdiv::Mesh subdiv_mesh;
+    size_t *vIds = NULL; // vertex id in a face
+    Point p;
+
+    // Transform Mesh to subdiv::Mesh
+    for(auto &vert : m_meshes->vertices){
+        p.x = vert.Position.x;
+        p.y = vert.Position.y;
+        p.z = vert.Position.z;
+        subdiv_mesh.addVertex(p);
+    }
+
+    for(auto &face : m_meshes->faces){
+        vIds = new size_t[3];
+        for(int i=0; i<3; i++)
+            vIds[i] = face.V[i];
+        subdiv_mesh.addFace(vIds, 3);
+    }
+
+    qDebug() << "Vertices: " << subdiv_mesh.verts.size() << " Edges: " << subdiv_mesh.edges.size() << " Faces: " << subdiv_mesh.faces.size() << endl;
+    Butterfly butterfly;
+    subdiv::Mesh *ret_mesh = NULL;
+    ret_mesh = butterfly.run(&subdiv_mesh);
+    qDebug() << "Vertices: " << ret_mesh->verts.size() << " Edges: " << ret_mesh->edges.size() << " Faces: " << ret_mesh->faces.size() << endl;
+
+    delete m_meshes;
+
+    m_meshes = new Mesh(this);
+
+    for(auto &vert : ret_mesh->verts){
+        Vertex v(vert->coords.x, vert->coords.y, vert->coords.z);
+        m_meshes->vertices.push_back(v);
+    }
+
+    for(auto &face : ret_mesh->faces){
+            Face f(face->verts[0]->id, face->verts[1]->id, face->verts[2]->id);
+            m_meshes->faces.push_back(f);
+            for(int i=0; i<3; i++)
+                m_meshes->indices.push_back(f.V[i]);
+    }
+
+    delete ret_mesh;
+
+    m_meshes->setupMesh();
+
+    QString label;
+    label = QString::number(m_meshes->vertices.size()) + " Vertices, " + QString::number(m_meshes->faces.size()) + " Faces. Time elapsed: " + QString::number(time.elapsed());
+    m_label->setText(label);
 }
