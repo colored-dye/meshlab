@@ -1,11 +1,10 @@
 #include "MyOpenGLWidget.h"
 #include <QCoreApplication>
 #include <QtMath>
-#include <QTime>
+#include <QElapsedTimer>
+#include <QInputDialog>
 #include "MeshSubdivision/Butterfly.h"
 #include "MeshDecimation/mdMeshDecimator.h"
-#include <QInputDialog>
-#include "Decimation.h"
 
 MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
   : QOpenGLWidget(parent)
@@ -26,6 +25,7 @@ MyOpenGLWidget::MyOpenGLWidget(QWidget* parent)
 
     m_meshes = nullptr;
 //    this->grabKeyboard();
+    this->setFocusPolicy(Qt::StrongFocus);
 }
 
 MyOpenGLWidget::~MyOpenGLWidget()
@@ -51,6 +51,15 @@ void MyOpenGLWidget::initializeGL()
     m_functions->glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
     glMatrixMode(GL_MODELVIEW);
 
+//    QString curDir = QDir::currentPath();
+//    m_lighting = new Shader(curDir + "/debug/shaders/vert.txt", curDir + "/debug/shaders/fragLighting.txt", this);
+//    if (m_lighting->link()) {
+//        qDebug("Shaders link success.");
+//    }
+//    else {
+//        qDebug("Shaders link failed!");
+//    }
+
     // 准备坐标轴
     initAxis();
 }
@@ -75,6 +84,10 @@ void MyOpenGLWidget::paintGL()
         // 变换矩阵
         m_meshes->shader_vertex->setMat4("model", m_scale * m_move * m_rotation * m_trans);
 
+//        m_meshes->shader_vertex->setVec3("objectColor", QVector3D(1.0f, 0.5f, 0.31f));
+//        m_meshes->shader_vertex->setVec3("lightColor", QVector3D(1.0f, 1.0f, 1.0f));
+//        m_meshes->shader_vertex->setVec3("lightPos", 2.0f * camera.getCameraPos());
+
         if(m_functions->glGetError() != GL_NO_ERROR){
             QMessageBox::warning(this, "Warning", "Show vertex");
         }
@@ -97,16 +110,26 @@ void MyOpenGLWidget::paintGL()
     }
 
     // 绘制面片
-//   if(m_showFace){
-//       m_meshes->shader_face->bind();
-//       m_meshes->shader_face->setMat4("view", camera.getViewMatrix());
-//       m_meshes->shader_face->setMat4("projection", camera.getProjectionMatrix());
-//       m_meshes->shader_face->setMat4("model", m_scale * m_move * m_rotation * m_trans);
-//       if(m_functions->glGetError() != GL_NO_ERROR){
-//           QMessageBox::warning(this, "Warning", "Show Face");
-//       }
-////       m_meshes->DrawFace();
-//   }
+    if(m_showFace){
+        m_meshes->shader_face->bind();
+        m_meshes->shader_face->setMat4("view", camera.getViewMatrix());
+        m_meshes->shader_face->setMat4("projection", camera.getProjectionMatrix());
+        m_meshes->shader_face->setMat4("model", m_scale * m_move * m_rotation * m_trans);
+
+        if(m_functions->glGetError() != GL_NO_ERROR){
+            QMessageBox::warning(this, "Warning", "Show Face: MVP");
+        }
+
+        m_meshes->shader_face->setVec3("objectColor", QVector3D(1.0f, 0.5f, 0.31f));
+        m_meshes->shader_face->setVec3("lightColor", QVector3D(1, 1, 1));
+        m_meshes->shader_face->setVec3("lightPos", 2.0f * camera.getCameraPos());
+        m_meshes->shader_face->setVec3("viewPos", camera.getCameraPos());
+
+        if(m_functions->glGetError() != GL_NO_ERROR){
+            QMessageBox::warning(this, "Warning", "Show Face: lighting");
+        }
+        m_meshes->DrawFace();
+   }
 }
 
 void MyOpenGLWidget::resizeGL(int w, int h)
@@ -324,7 +347,7 @@ void MyOpenGLWidget::butterflySubdivision()
         return;
     }
 
-    QTime time;
+    QElapsedTimer time;
     time.start();
 
     m_label->setText("Subdividing mesh... Please wait");
@@ -374,6 +397,13 @@ void MyOpenGLWidget::butterflySubdivision()
             for(int i=1; i<3; i++)
                 m_meshes->indices.push_back(f.V[i]);
             m_meshes->indices.push_back(f.V[0]);
+
+            for(int i=0; i<3; i++){
+                glm::vec3 edge[2];
+                edge[0] = m_meshes->vertices[f.V[(i+1)%3]].Position - m_meshes->vertices[f.V[i]].Position;
+                edge[1] = m_meshes->vertices[f.V[(i+2)%3]].Position - m_meshes->vertices[f.V[i]].Position;
+                m_meshes->vertices[f.V[i]].Normal += glm::cross(edge[0], edge[1]);
+            }
     }
 
     delete ret_mesh;
@@ -400,7 +430,7 @@ void MyOpenGLWidget::Decimation()
 
     m_label->setText("Decimating mesh... Please wait");
 
-    QTime time;
+    QElapsedTimer time;
     time.start();
 
     vector <MeshDecimation::Vec3<float>> points;
@@ -455,6 +485,13 @@ void MyOpenGLWidget::Decimation()
         for(int i=1; i<3; i++)
             m_meshes->indices.push_back(f.V[i]);
         m_meshes->indices.push_back(f.V[0]);
+
+        for(int i=0; i<3; i++){
+            glm::vec3 edge[2];
+            edge[0] = m_meshes->vertices[f.V[(i+1)%3]].Position - m_meshes->vertices[f.V[i]].Position;
+            edge[1] = m_meshes->vertices[f.V[(i+2)%3]].Position - m_meshes->vertices[f.V[i]].Position;
+            m_meshes->vertices[f.V[i]].Normal += glm::cross(edge[0], edge[1]);
+        }
     }
 
     m_meshes->setupMesh();

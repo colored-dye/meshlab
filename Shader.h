@@ -53,7 +53,7 @@ public:
     }
     void setVec3(const char *name, glm::vec3 vec)
     {
-        func->glUniform3fv(uniformLocation(name), 3, glm::value_ptr(vec));
+        func->glUniform3fv(uniformLocation(name), 1, glm::value_ptr(vec));
     }
     void setVec3(const char *name, float x, float y, float z)
     {

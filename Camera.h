@@ -9,7 +9,7 @@
 class Camera
 {
 private:
-    float CAMERA_DIST = 3.0f;
+    float CAMERA_DIST = 10.0f;
     glm::vec3 cameraPos, cameraFront, cameraUp;
     float fov, aspectRatio;
 

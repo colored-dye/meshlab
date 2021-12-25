@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "Shader.h"
+#include <QMessageBox>
 
 struct Vertex {
     // position
@@ -73,6 +74,8 @@ public:
         context = w;
         func = context->context()->functions();
 
+        context->makeCurrent();
+
         maxPoint = glm::vec3(-MINMAXBOUND);
         minPoint = glm::vec3(MINMAXBOUND);
         centerPoint = glm::vec3(0.0f);
@@ -104,12 +107,19 @@ public:
         else {
             qDebug("Shaders link failed!");
         }
+
+        context->doneCurrent();
     }
     ~Mesh(){
         if(VBO) VBO->destroy(), delete VBO;
         if(EBO) EBO->destroy(), delete EBO;
         if(FBO) FBO->destroy(), delete FBO;
-        if(VAO) VAO->destroy(), delete VAO;
+        if(VAO){
+            context->makeCurrent();
+            VAO->destroy();
+            context->doneCurrent();
+            delete VAO;
+        }
         if(shader_vertex) delete shader_vertex;
         if(shader_edge) delete shader_edge;
         if(shader_face) delete shader_face;
@@ -142,7 +152,18 @@ public:
         VBO->allocate(&vertices[0], vertices.size() * sizeof(Vertex));
         shader_vertex->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(Vertex));
         shader_vertex->enableAttributeArray(0);
-        shader_vertex->setAttributeBuffer(1, GL_FLOAT, sizeof(glm::vec3), 3, sizeof(Vertex));
+        shader_vertex->setAttributeBuffer(0, GL_FLOAT, sizeof(glm::vec3), 3, sizeof(Vertex));
+        shader_vertex->enableAttributeArray(1);
+
+//        VBO->bind();
+        shader_face->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(Vertex));
+        shader_face->enableAttributeArray(0);
+        shader_face->setAttributeBuffer(1, GL_FLOAT, sizeof(glm::vec3), 3, sizeof(Vertex));
+        shader_face->enableAttributeArray(1);
+
+        if(func->glGetError() != GL_NO_ERROR){
+            QMessageBox::warning(context, "Warning", "Error in shader face");
+        }
 
         EBO = new QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
         EBO->create();
@@ -153,6 +174,10 @@ public:
         FBO->create();
         FBO->bind();
         FBO->allocate(&faces[0], faces.size() * sizeof(Face));
+
+        if(func->glGetError() != GL_NO_ERROR){
+            QMessageBox::warning(context, "Warning", "Error: shader lighting bind buffer");
+        }
 
         context->doneCurrent();
     }
